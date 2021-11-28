@@ -1,0 +1,2 @@
+#!/bin/bash
+majiq build /mnt/c/Users/hasna/Documents/MSc_project/majiq/arabidopsis_majiq.gff3 -c /mnt/c/Users/hasna/Documents/MSc_project/majiq/conf_file.txt -o /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out
