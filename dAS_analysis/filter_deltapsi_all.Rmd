@@ -1,0 +1,52 @@
+---
+title: "filter voila tsv all"
+output: html_document
+---
+
+this is explained in great detail in the weekly meetings doc under Tues Nov 30th, but the big idea is to filter the majiq deltapsi output for LSVs with dAS. 
+
+```{r}
+library(tidyverse)
+library(splitstackshape)
+```
+
+
+step 1: write a function that reads in the voila tsv output and outputs a list of dAS LSVs, then run it on each voila tsv output.
+```{r}
+filter25 <- function(deltapsi, cond1, cond2){
+  #deltapsi is the basename of the deltapsi tsv file, cond1 and 2 are the 4 char condition codes
+  all <- read_delim(paste("C:/Users/hasna/Documents/MSc_project/majiq/dPSI_out/", cond1, cond2, "/", deltapsi, sep = ""), delim = "\t")
+
+  filtered <- all %>% select(`Gene ID`, `LSV ID`, paste(cond1, " E(PSI)", sep = ""), paste(cond2, " E(PSI)", sep = "")) %>% 
+  cSplit(paste(cond1, " E(PSI)", sep = ""), ";") %>% 
+  cSplit(paste(cond2, " E(PSI)", sep = ""), ";")
+
+  max_junc = (ncol(filtered) - 2)/2
+
+  for (i in 1:max_junc){
+    colname = paste("diff", i, sep = "")
+    col1 = paste(cond1, " E(PSI)_", i, sep = "")
+    col2 =  paste(cond2, " E(PSI)_", i, sep = "")
+    filtered[, colname] <-  abs(filtered[ ,..col1] - filtered[ ,..col2])
+  }
+
+  dAS <- filtered %>% filter_at(vars(starts_with("diff")), any_vars((. >=.25)))
+  write.table(dAS, paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/filter25/", cond1, cond2, ".tsv", sep = ""),sep = "\t", col.names = T, row.names = F, quote = F)
+}
+```
+
+```{r}
+filter25("K20d_K20w.deltapsi.tsv", "K20d", "K20w")
+filter25("K40d_K40w.deltapsi.tsv", "K40d", "K40w")
+filter25("K60d_K60w.deltapsi.tsv", "K60d", "K60w")
+filter25("L20d_L20w.deltapsi.tsv", "L20d", "L20w")
+filter25("L40d_L40w.deltapsi.tsv", "L40d", "L40w")
+filter25("L60d_L60w.deltapsi.tsv", "L60d", "L60w")
+filter25("K20d_L20d.deltapsi.tsv", "K20d", "L20d")
+filter25("K40d_L40d.deltapsi.tsv", "K40d", "L40d")
+filter25("K60d_L60d.deltapsi.tsv", "K60d", "L60d")
+filter25("K20w_L20w.deltapsi.tsv", "K20w", "L20w")
+filter25("K40w_L40w.deltapsi.tsv", "K40w", "L40w")
+filter25("K60w_L60w.deltapsi.tsv", "K60w", "L60w")
+```
+
