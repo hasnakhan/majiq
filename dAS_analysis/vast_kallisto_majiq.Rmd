@@ -41,7 +41,7 @@ vast_k40dk40w <- read_delim("../../vasttools/all_data/dPSI25_no_merging_all_reps
 
 vast_k40dl40d <- read_delim("../../vasttools/all_data/dPSI25_no_merging_all_reps/K40d-L40d_168events/K40d-L40d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
   select(GeneID) %>% 
-  mutate(prog = c("vast-tools"), comp = c("K40dL20d"))
+  mutate(prog = c("vast-tools"), comp = c("K40dL40d"))
 
 vast_k40wl40w <- read_delim("../../vasttools/all_data/dPSI25_no_merging_all_reps/K40w-L40w_69events/K40w-L40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
   select(GeneID) %>% 
@@ -195,7 +195,7 @@ K60wL60w <- unique(c(vast_k60wl60w$GeneID, kallisto_k60wl60w$gene_id, majiq_k60w
 
 step3: assign each gene a column for the program(s) to which it belongs and step 4: join program columns together
 ```{r}
-#this may objectively be some of the ugliest code I've eve written... find a way to clean this up!
+#this may objectively be some of the ugliest code I've ever written... find a way to clean this up!
 K20dK20w <- as.data.frame(K20dK20w)
 colnames(K20dK20w) <- "gene"
 K20dK20w <- K20dK20w %>% mutate(prog1 = if_else(gene %in% vast_k20dk20w$GeneID, "vast-tools", "NA"), prog2 = if_else(gene %in% kallisto_k20dk20w$gene_id, "kallisto", "NA"), prog3 = if_else(gene %in% majiq_k20dk20w$`Gene ID`, "majiq", "NA")) 
@@ -295,15 +295,19 @@ K60wL60w <- unite(K60wL60w, prog, c(prog1, prog2, prog3), na.rm = T, remove = F)
 
 step5: rbind, group_by, summarize and plot!
 ```{r}
+order <- c("K20dK20w", "K40dK40w", "K60dK60w", "L20dL20w", "L40dL40w", "L60dL60w", "K20dL20d", "K40dL40d", "K60dL60d", "K20wL20w", "K40wL40w", "K60wL60w")
+
 all <- rbind(K20dK20w, K40dK40w, K60dK60w, L20dL20w, L40dL40w, L60dL60w, K20dL20d, K40dL40d, K60dL60d, K20wL20w, K40wL40w, K60wL60w)
 to_plot <- all %>% group_by(prog, comp, prog_vm) %>% 
-  summarize(count = n())
+  summarize(count = n()) %>% 
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
 
 ```
 
 ```{r}
 png("test.png", units="in", width=15, height=8, res=300)
-ggplot(to_plot, aes(x = comp, y = count, fill = prog))+
+ggplot(to_plot, aes(x = fct_inorder(comp), y = count, fill = prog))+
   geom_bar(stat = "identity")
 dev.off()
 ```
@@ -312,12 +316,69 @@ wonder what happens if we get rid of kallisto...
 ```{r}
 to_plot[to_plot == ""] = NA
 to_plot_vm <- to_plot %>% filter(!is.na(prog_vm))
+colours <- c("#53B400", "#00C094", "#FB61D7")
 ```
 
 ```{r}
 png("test.png", units="in", width=15, height=8, res=300)
 ggplot(to_plot_vm, aes(x = comp, y = count, fill = prog_vm))+
-  geom_bar(stat = "identity")
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = colours)
 dev.off()
 ```
+
+ok, so at the very least, vast and majiq agree somewhat well. I wonder then, are the general trends the same across all 3 programs (d > w, l > k)?
+```{r}
+#this ordeer doesn't actually matter, it'll get fixed after group_by and summarize
+kallisto_all <- rbind(kallisto_k20dk20w,  kallisto_k40dk40w, kallisto_k60dk60w, kallisto_l20dl20w, kallisto_l40dl40w, kallisto_l60dl60w, kallisto_k20dl20d,kallisto_k40dl40d,kallisto_k60dl60d, kallisto_k20wl20w, kallisto_k40wl40w, kallisto_k60wl60w)
+
+kallisto_all <- kallisto_all %>% 
+  group_by(comp) %>% 
+  summarize(count = n())%>% 
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
+```
+
+```{r}
+png("test.png", units="in", width=15, height=3, res=300)
+ggplot(kallisto_all, aes(x = fct_inorder(comp), y = count))+
+  geom_bar(stat = "identity", fill = "cadetblue3")
+dev.off()
+```
+
+```{r}
+vast_all <- rbind(vast_k20dk20w, vast_k20dl20d, vast_k20wl20w, vast_k40dk40w, vast_k40dl40d, vast_k40wl40w, vast_k60dk60w, vast_k60dl60d, vast_k60wl60w, vast_l20dl20w, vast_l40dl40w, vast_l60dl60w)
+
+vast_all <- vast_all %>% 
+  group_by(comp) %>% 
+  summarize(count = n()) %>% 
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
+```
+
+```{r}
+png("test.png", units="in", width=15, height=3, res=300)
+ggplot(vast_all, aes(x = fct_inorder(comp), y = count))+
+  geom_bar(stat = "identity", fill = "orchid")
+dev.off()
+```
+
+```{r}
+majiq_all <- rbind(majiq_k20dk20w, majiq_k20dl20d, majiq_k20wl20w, majiq_k40dk40w, majiq_k40dl40d, majiq_k40wl40w, majiq_k60dk60w, majiq_k60dl60d, majiq_k60wl60w, majiq_l20dl20w, majiq_l40dl40w, majiq_l60dl60w)
+
+majiq_all <- majiq_all %>% 
+  group_by(comp) %>% 
+  summarize(count = n()) %>% 
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
+```
+
+```{r}
+png("test.png", units="in", width=15, height=3, res=300)
+ggplot(majiq_all, aes(x = fct_inorder(comp), y = count))+
+  geom_bar(stat = "identity", fill = "springgreen2")
+dev.off()
+```
+
+
 
