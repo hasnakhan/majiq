@@ -342,7 +342,7 @@ kallisto_all <- kallisto_all %>%
 ```{r}
 png("test.png", units="in", width=15, height=3, res=300)
 ggplot(kallisto_all, aes(x = fct_inorder(comp), y = count))+
-  geom_bar(stat = "identity", fill = "cadetblue3")
+  geom_bar(stat = "identity", fill = "#F8766D")
 dev.off()
 ```
 
@@ -359,7 +359,7 @@ vast_all <- vast_all %>%
 ```{r}
 png("test.png", units="in", width=15, height=3, res=300)
 ggplot(vast_all, aes(x = fct_inorder(comp), y = count))+
-  geom_bar(stat = "identity", fill = "orchid")
+  geom_bar(stat = "identity", fill = "#00C094")
 dev.off()
 ```
 
@@ -376,7 +376,7 @@ majiq_all <- majiq_all %>%
 ```{r}
 png("test.png", units="in", width=15, height=3, res=300)
 ggplot(majiq_all, aes(x = fct_inorder(comp), y = count))+
-  geom_bar(stat = "identity", fill = "springgreen2")
+  geom_bar(stat = "identity", fill = "#53B400")
 dev.off()
 ```
 
