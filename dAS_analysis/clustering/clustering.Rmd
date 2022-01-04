@@ -1,0 +1,243 @@
+---
+title: "clustering"
+output: html_document
+---
+
+this (in theory) is gonna make a clustered heatmap of PSI for all the dAS genes. Briefly, dAS genes were identified as detected by both majiq and vast in at least one comparison (sashimi scoring indicated that events predicted by vast and majiq were well reflected in genomic alignments). For all dAS genes, we identified the PSI predicted by vast (but again, sashimi scoring showed that vast and majiq line up well and the vast output is easier to work with) for each event of each dAS gene in each treatment group. We then performed k-means clustering, plotted a heatmap of the PSI for each event in each cluster and performed GO enrichment analysis on each cluster.
+
+```{r}
+library(tidyverse)
+library(ComplexHeatmap)
+```
+
+vast-tools:
+```{r}
+vast_k20dk20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20d-K20w_68events/K20d-K20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20dK20w"))
+
+vast_k20dl20d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20d-L20d_327events/K20d-L20d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20dL20d"))
+
+vast_k20wl20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20w-L20w_196events/K20w-L20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20wL20w"))
+
+vast_k40dk40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40d-K40w_23events/K40d-K40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40dK40w"))
+
+vast_k40dl40d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40d-L40d_168events/K40d-L40d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40dL40d"))
+
+vast_k40wl40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40w-L40w_69events/K40w-L40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40wL40w"))
+
+vast_k60dk60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60d-K60w_6events/K60d-K60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60dK60w"))
+
+vast_k60dl60d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60d-L60d_94events/K60d-L60d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60dL60d"))
+
+vast_k60wl60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60w-L60w_58events/K60w-L60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60wL60w"))
+
+vast_l20dl20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L20d-L20w_706events/L20d-L20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L20dL20w"))
+
+vast_l40dl40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L40d-L40w_27events/L40d-L40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L40dL40w"))
+
+vast_l60dl60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L60d-L60w_5events/L60d-L60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L60dL60w"))
+```
+
+majiq:
+```{r}
+majiq_k20dk20w <- read_delim("../../../majiq/dAS_analysis/filter25/K20dK20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20dK20w"))
+
+majiq_k40dk40w <- read_delim("../../../majiq/dAS_analysis/filter25/K40dK40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40dK40w"))
+
+majiq_k60dk60w <- read_delim("../../../majiq/dAS_analysis/filter25/K60dK60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60dK60w"))
+
+majiq_l20dl20w <- read_delim("../../../majiq/dAS_analysis/filter25/L20dL20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L20dL20w"))
+
+majiq_l40dl40w <- read_delim("../../../majiq/dAS_analysis/filter25/L40dL40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L40dL40w"))
+
+majiq_l60dl60w <- read_delim("../../../majiq/dAS_analysis/filter25/L60dL60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L60dL60w"))
+
+majiq_k20dl20d <- read_delim("../../../majiq/dAS_analysis/filter25/K20dL20d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20dL20d"))
+
+majiq_k40dl40d <- read_delim("../../../majiq/dAS_analysis/filter25/K40dL40d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40dL40d"))
+
+majiq_k60dl60d <- read_delim("../../../majiq/dAS_analysis/filter25/K60dL60d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60dL60d"))
+
+majiq_k20wl20w <- read_delim("../../../majiq/dAS_analysis/filter25/K20wL20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20wL20w"))
+
+majiq_k40wl40w <- read_delim("../../../majiq/dAS_analysis/filter25/K40wL40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40wL40w"))
+
+majiq_k60wl60w <- read_delim("../../../majiq/dAS_analysis/filter25/K60wL60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60wL60w"))
+```
+
+pull out the vast events where dAS of that gene was also identified by maijq
+```{r}
+vm_k20dk20w <- filter(vast_k20dk20w, GeneID %in% majiq_k20dk20w$`Gene ID`)
+vm_k40dk40w <- filter(vast_k40dk40w, GeneID %in% majiq_k40dk40w$`Gene ID`)
+vm_k60dk60w <- filter(vast_k60dk60w, GeneID %in% majiq_k60dk60w$`Gene ID`)
+vm_l20dl20w <- filter(vast_l20dl20w, GeneID %in% majiq_l20dl20w$`Gene ID`)
+vm_l40dl40w <- filter(vast_l40dl40w, GeneID %in% majiq_l40dl40w$`Gene ID`)
+vm_l60dl60w <- filter(vast_l60dl60w, GeneID %in% majiq_l60dl60w$`Gene ID`)
+vm_k20dl20d <- filter(vast_k20dl20d, GeneID %in% majiq_k20dl20d$`Gene ID`)
+vm_k40dl40d <- filter(vast_k40dl40d, GeneID %in% majiq_k40dl40d$`Gene ID`)
+vm_k60dl60d <- filter(vast_k60dl60d, GeneID %in% majiq_k60dl60d$`Gene ID`)
+vm_k20wl20w <- filter(vast_k20wl20w, GeneID %in% majiq_k20wl20w$`Gene ID`)
+vm_k40wl40w <- filter(vast_k40wl40w, GeneID %in% majiq_k40wl40w$`Gene ID`)
+vm_k60wl60w <- filter(vast_k60wl60w, GeneID %in% majiq_k60wl60w$`Gene ID`)
+vm_allcomps <- rbind(vm_k20dk20w, vm_k20dl20d, vm_k20wl20w, vm_k40dk40w, vm_k40dl40d, vm_k40wl40w, vm_k60dk60w, vm_k60dl60d, vm_k60wl60w, vm_l20dl20w, vm_l40dl40w, vm_l60dl60w)
+```
+
+
+at this point, we have a list of all the dAS events we're interested in. many of them are obviously gonna be duplicates between comps (dAS in multiple comparisons), and since we're looking across all treatment groups anyway, we should just get rid of these now. All we're really interested in is the event IDs cause that's what we'll be looking for in the inclusion table. Should note here that some of these events may not have sufficient read coverage across all treatment groups, but they at least did in the 2 groups where the dAS was identified. 
+
+```{r}
+events <- unique(vm_allcomps$EVENT.x)
+#ok, so there are 613 unique splicing events identified by vast and majiq. why is this less than the 643 we see in the Venn diagram? Because the same gene in different groups would've been counted as different observations there, but here they'd be the same 
+```
+
+The next step is to get out the vast inclusion table, and pull out the events corresponding to these genes. Isn't there a version of the inclusion table with AGI codes and replicate averages somewhere?
+...apparently not
+```{r}
+inc <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+inc <- merge(inc, db, by = "EVENT", all.x = T)
+
+#filter the inclusion table to just the events we care about. this will make it much smaller and quicker to work with
+
+inc <- filter(inc, EVENT %in% events)
+```
+
+next thing is to average the PSI across replicates. I'm thinking to get rid of the quality scores column, and then pivot longer, and then add a column for treatment group, and then group by treatment and event and summarize the mean?
+
+```{r}
+inc <- inc %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", "COMPLEX")) %>% 
+  pivot_longer(cols = -c(EVENT, GeneID), names_to = "sample", values_to = "PSI") %>% 
+  mutate("group" = case_when(grepl("K20d", sample) ~ "K20d",
+                             grepl("K40d", sample) ~ "K40d",
+                             grepl("K60d", sample) ~ "K60d",
+                             grepl("L20d", sample) ~ "L20d",
+                             grepl("L40d", sample) ~ "L40d",
+                             grepl("L60d", sample) ~ "L60d",
+                             grepl("K20W", sample) ~ "K20w",
+                             grepl("K40W", sample) ~ "K40w",
+                             grepl("K60W", sample) ~ "K60w",
+                             grepl("L20W", sample) ~ "L20w",
+                             grepl("L40W", sample) ~ "L40w",
+                             grepl("L60W", sample) ~ "L60w",
+                             grepl("Lrw", sample) ~ "Lrw",
+                             grepl("Krw", sample) ~ "Krw")) %>% 
+  group_by(EVENT, GeneID, group) %>% 
+  summarize(mean = mean(PSI)) %>% 
+  mutate("AS_percent" = ifelse(
+  grepl("AthEX.*", EVENT), 100 - mean, mean
+  ))
+inc$mean <- NULL
+#now we have to pivot wider again for k means
+inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
+```
+
+that's all set up then, next thing is k-means clustering. let's start with a scree plot
+```{r}
+#first, let's write a function to test several different possible numbers of clusters in kmeans analysis
+ss <- function(i, d) {
+  d %>% ungroup %>% 
+    select(where(is.numeric)) %>% 
+    kmeans(i, nstart = 20) -> km
+  km$tot.withinss
+}
+#next, construct a dataframe of cluster numbers (let's try 3-30 to start) and the corresponding tot.withinss (the total within cluster sum of squares, which is basically a measure of how tight the clusters are)
+tibble(clusters = 2:20) %>% 
+   mutate(tot.wss = map_dbl(clusters, ~ss(., inc))) -> scree
+
+#plot scree_data. We're looking for the value of clusters where increasing cluster no longer sharply reduces total within cluster sum of squares
+ggplot(scree, aes(x = clusters, y = tot.wss))+
+  geom_point()+
+  geom_line()
+```
+
+let's go with 6 clusters for now
+```{r}
+set.seed(43)
+km6 <- inc %>% ungroup %>% 
+  select(-c(GeneID, EVENT)) %>% 
+  kmeans(6, nstart = 20)
+
+inc.km <- tibble(EVENT = inc$EVENT, GeneID = inc$GeneID, cluster = km6$cluster)
+#add the cluster numbers to the PSI table (inc)
+
+inc6 <- merge(inc, inc.km, by = "EVENT", all.x = T)
+```
+
+make the heatmap: like Anna's, we want the columns split by treatment group, and the rows by cluster
+```{r}
+mat <- as.matrix(inc6[,3:16])
+rownames(mat) <- inc6$cluster
+
+Heatmap(mat,  row_split = factor(inc6$cluster, levels = 6:1), cluster_row_slices = F, name = "Percent AS", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"))
+```
+
+looking at the heatmap i'm wondering if 5 clusters was too many (1 and 2 basically look the same). let's try 4
+```{r}
+set.seed(43)
+km5 <- inc %>% ungroup %>% 
+  select(-c(GeneID, EVENT)) %>% 
+  kmeans(5, nstart = 20)
+
+inc.km5 <- tibble(EVENT = inc$EVENT, GeneID = inc$GeneID, cluster = km5$cluster)
+#add the cluster numbers to the PSI table (inc)
+
+inc5 <- merge(inc, inc.km5, by = "EVENT", all.x = T)
+```
+
+make the heatmap: like Anna's, we want the columns split by treatment group, and the rows by cluster
+```{r}
+mat5 <- as.matrix(inc5[,3:16])
+rownames(mat5) <- inc5$cluster
+
+Heatmap(mat5,  row_split = factor(inc5$cluster, levels = 5:1), cluster_row_slices = F, name = "Percent AS", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"), column_names_rot = 0, column_names_centered = T)
+```
+
+looks good! next thing is GO enrichment on the clusters
