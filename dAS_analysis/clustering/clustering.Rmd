@@ -129,6 +129,24 @@ vm_k60wl60w <- filter(vast_k60wl60w, GeneID %in% majiq_k60wl60w$`Gene ID`)
 vm_allcomps <- rbind(vm_k20dk20w, vm_k20dl20d, vm_k20wl20w, vm_k40dk40w, vm_k40dl40d, vm_k40wl40w, vm_k60dk60w, vm_k60dl60d, vm_k60wl60w, vm_l20dl20w, vm_l40dl40w, vm_l60dl60w)
 ```
 
+let's plot this real quick:
+```{r}
+order <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w", "K60dL60d", "K40dL40d", "K20dL20d", "K60wL60w", "K40wL40w", "K20wL20w")
+
+barplot <- vm_allcomps %>% group_by(comp) %>% 
+  summarize(count = n()) %>%
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
+```
+
+```{r}
+png("test.png", units="in", width=12, height=6, res=300)
+ggplot(barplot, aes(x = comp, y = count, fill = count))+
+  geom_bar(stat = "identity", fill = "darkturquoise")+
+  labs(y = "Number of dAS genes")+
+  theme(axis.title.x = element_blank())
+dev.off()
+```
 
 at this point, we have a list of all the dAS events we're interested in. many of them are obviously gonna be duplicates between comps (dAS in multiple comparisons), and since we're looking across all treatment groups anyway, we should just get rid of these now. All we're really interested in is the event IDs cause that's what we'll be looking for in the inclusion table. Should note here that some of these events may not have sufficient read coverage across all treatment groups, but they at least did in the 2 groups where the dAS was identified. 
 
@@ -219,7 +237,7 @@ rownames(mat) <- inc6$cluster
 Heatmap(mat,  row_split = factor(inc6$cluster, levels = 6:1), cluster_row_slices = F, name = "Percent AS", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"))
 ```
 
-looking at the heatmap i'm wondering if 5 clusters was too many (1 and 2 basically look the same). let's try 4
+looking at the heatmap i'm wondering if 6 clusters was too many (1 and 2 basically look the same). let's try 5
 ```{r}
 set.seed(43)
 km5 <- inc %>% ungroup %>% 
@@ -230,14 +248,116 @@ inc.km5 <- tibble(EVENT = inc$EVENT, GeneID = inc$GeneID, cluster = km5$cluster)
 #add the cluster numbers to the PSI table (inc)
 
 inc5 <- merge(inc, inc.km5, by = "EVENT", all.x = T)
+
+mat5 <- as.matrix(inc5[,3:16])
+rownames(mat5) <- inc5$cluster
+
+text_list = list(
+    text1 = "5",
+    text2 = "4",
+    text3 = "3",
+    text4 = "2",
+    text5 = "1"
+)
+
+ha = rowAnnotation(foo = anno_empty(border = FALSE, 
+    width = max_text_width(unlist(text_list)) + unit(4, "mm")))
 ```
 
 make the heatmap: like Anna's, we want the columns split by treatment group, and the rows by cluster
 ```{r}
-mat5 <- as.matrix(inc5[,3:16])
-rownames(mat5) <- inc5$cluster
+png("test.png", units="in", width=12, height=12, res=300)
 
-Heatmap(mat5,  row_split = factor(inc5$cluster, levels = 5:1), cluster_row_slices = F, name = "Percent AS", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"), column_names_rot = 0, column_names_centered = T)
+Heatmap(mat5,  row_split = factor(inc5$cluster, levels = 5:1), cluster_row_slices = F, name = "Percent AS\n", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"), column_names_rot = 0, column_names_centered = T, left_annotation = ha, row_title = "Cluster", column_names_gp = grid::gpar(fontsize = 16), row_title_gp = gpar(fontsize = 16), heatmap_legend_param = list(labels_gp = gpar(fontsize = 16), title_gp = gpar(fontsize = 16), legend_height = unit(4, "cm")))
+
+for(i in 1:5) {
+    decorate_annotation("foo", slice = i, {
+        grid.rect(x = 0, width = unit(2, "mm"), gp = gpar(fill = i, col = NA), just = "left")
+        grid.text(paste(text_list[[i]], collapse = "\n"), x = unit(3, "mm"), just = "left", gp = gpar(fontsize = 16))
+    })
+}
+
+dev.off()
 ```
 
 looks good! next thing is GO enrichment on the clusters
+```{r}
+clust1 <- filter(inc5, cluster == 1) %>% 
+  select(GeneID.x)
+clust2 <- filter(inc5, cluster == 2) %>% 
+  select(GeneID.x)
+clust3 <- filter(inc5, cluster == 3) %>% 
+  select(GeneID.x)
+clust4 <- filter(inc5, cluster == 4) %>% 
+  select(GeneID.x)
+clust5 <- filter(inc5, cluster == 5) %>% 
+  select(GeneID.x)  
+write_csv(clust1, "clust1.csv")
+write_csv(clust2, "clust2.csv")
+write_csv(clust3, "clust3.csv")
+write_csv(clust4, "clust4.csv")
+write_csv(clust5, "clust5.csv")
+```
+
+```{r}
+go1 <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/clust1_out.txt", delim = "\t") %>% 
+  select(term_type, Term, queryitem, FDR) %>% 
+  mutate(cluster = 1) %>% 
+  filter (FDR <= 0.05)
+go3 <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/clust3_out.txt", delim = "\t") %>% 
+  select(term_type, Term, queryitem, FDR) %>% 
+  mutate(cluster = 3)%>% 
+  filter (FDR <= 0.05)
+go4 <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/clust4_out.txt", delim = "\t") %>% 
+  select(term_type, Term, queryitem, FDR) %>% 
+  mutate(cluster = 4)%>% 
+  filter (FDR <= 0.05)
+go5 <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/clust5_out.txt", delim = "\t") %>% 
+  select(term_type, Term, queryitem, FDR) %>% 
+  mutate(cluster = 5)%>% 
+  filter (FDR <= 0.05)
+go2 <- tibble(term_type = "C", Term = "chloroplast part", queryitem = NA, FDR = NA, cluster = 2)
+#went with chloro so it passes later filtering, will be removed by ggplot anyway cause of NAs
+go <- rbind(go1, go2, go3, go4, go5)
+go$cluster <- as.factor(go$cluster)
+
+colour_key <- tibble(term_type = c("F", "C", "P"), colour = c("blue", "green", "red"))
+
+go <- join(go, colour_key, by = "term_type")
+
+#need this gross workaround for some reason
+thingy <-  paste("<span style = 'color: ", go$colour, ";'>", go$Term, "<span>", sep = "")
+go <- cbind(go, thingy= thingy)
+```
+
+```{r}
+png("test.png", units="in", width=12, height=15, res=300)
+ggplot(go, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = queryitem, label = cluster))+
+  geom_point()+
+  scale_colour_gradient(low = "blue", high = "red")+
+  theme_bw()+
+  theme(axis.text.y = element_markdown())+
+  labs(x = "",
+    y = "GO term")
+dev.off()
+```
+
+let's try filtering for GO terms that only include keywords of interest:
+```{r}
+filtered <- filter(go, grepl("translation|ribo|response|photo|phospho|metabol|oxi|protein|thylakoid|resp|chloro|mito|structur", thingy))
+```
+
+```{r}
+png("test.png", units="in", width=12, height=15, res=300)
+ggplot(filtered, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = queryitem, label = cluster))+
+  geom_point()+
+  scale_colour_gradient(low = "blue", high = "red")+
+  theme_bw()+
+  theme(axis.text.y = element_markdown(size = 15),
+        legend.text = element_text(size = 15),
+        legend.title = element_text(size = 15))+
+  labs(x = "",
+    y = "GO term",
+    size = "Number of Genes")
+dev.off()
+```
