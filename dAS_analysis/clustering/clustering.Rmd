@@ -8,6 +8,8 @@ this (in theory) is gonna make a clustered heatmap of PSI for all the dAS genes.
 ```{r}
 library(tidyverse)
 library(ComplexHeatmap)
+library(ggVennDiagram)
+library(ggtext)
 ```
 
 vast-tools:
@@ -127,24 +129,53 @@ vm_k20wl20w <- filter(vast_k20wl20w, GeneID %in% majiq_k20wl20w$`Gene ID`)
 vm_k40wl40w <- filter(vast_k40wl40w, GeneID %in% majiq_k40wl40w$`Gene ID`)
 vm_k60wl60w <- filter(vast_k60wl60w, GeneID %in% majiq_k60wl60w$`Gene ID`)
 vm_allcomps <- rbind(vm_k20dk20w, vm_k20dl20d, vm_k20wl20w, vm_k40dk40w, vm_k40dl40d, vm_k40wl40w, vm_k60dk60w, vm_k60dl60d, vm_k60wl60w, vm_l20dl20w, vm_l40dl40w, vm_l60dl60w)
+
+#this is useful for candidate genes, let's write it out
+#write.table(vm_allcomps, "vm_all_dAS_genes.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
 ```
 
 let's plot this real quick:
 ```{r}
-order <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w", "K60dL60d", "K40dL40d", "K20dL20d", "K60wL60w", "K40wL40w", "K20wL20w")
+order1 <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w")
+order2 <- c("K60dL60d", "K40dL40d", "K20dL20d", "K60wL60w", "K40wL40w", "K20wL20w")
 
-barplot <- vm_allcomps %>% group_by(comp) %>% 
-  summarize(count = n()) %>%
-  mutate(comp = factor(comp, levels = order)) %>% 
+barplot1 <- vm_allcomps %>% filter(comp %in% order1) %>% 
+  group_by(comp) %>% 
+  summarize(count = n()) 
+#add L60dL60w back in (just to make an empty bar)
+L60dL60w <- tibble(comp = "L60dL60w", count = 0)
+barplot1 <- rbind(barplot1, L60dL60w)
+
+barplot1 <- barplot1 %>% mutate(comp = factor(comp, levels = order1)) %>% 
   arrange(comp)
+
+barplot2 <- vm_allcomps %>% filter(comp %in% order2) %>% 
+  group_by(comp) %>% 
+  summarize(count = n()) %>%
+  mutate(comp = factor(comp, levels = order2)) %>% 
+  arrange(comp)
+
 ```
 
 ```{r}
-png("test.png", units="in", width=12, height=6, res=300)
-ggplot(barplot, aes(x = comp, y = count, fill = count))+
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(barplot1, aes(x = comp, y = count, fill = count))+
   geom_bar(stat = "identity", fill = "darkturquoise")+
-  labs(y = "Number of dAS genes")+
+  labs(y = "Number of dAS genes\n")+
+  theme_minimal()+
   theme(axis.title.x = element_blank())
+
+dev.off()
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(barplot2, aes(x = comp, y = count, fill = count))+
+  geom_bar(stat = "identity", fill = "darkturquoise")+
+  labs(y = "Number of dAS genes\n")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())
+
 dev.off()
 ```
 
@@ -188,11 +219,13 @@ inc <- inc %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", 
                              grepl("Lrw", sample) ~ "Lrw",
                              grepl("Krw", sample) ~ "Krw")) %>% 
   group_by(EVENT, GeneID, group) %>% 
-  summarize(mean = mean(PSI)) %>% 
+  summarize(mean = mean(PSI), sd = sd (PSI)) %>% 
   mutate("AS_percent" = ifelse(
   grepl("AthEX.*", EVENT), 100 - mean, mean
   ))
 inc$mean <- NULL
+inc_long <- inc
+inc$sd <- NULL
 #now we have to pivot wider again for k means
 inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
 ```
@@ -280,6 +313,17 @@ for(i in 1:5) {
 dev.off()
 ```
 
+Nick wants to know where the K20dK20w dAS genes fall on the heatmap. let's figure out what cluster they're in 
+```{r}
+K20dK20w <- unique(vm_k20dk20w$GeneID)
+K20dK20w_clusters <- inc5 %>% filter(GeneID.x %in% K20dK20w) %>% 
+  select(cluster) %>% 
+  group_by(cluster) %>% 
+  summarize(count = n())
+K20dK20w_clusters
+```
+aight so they're mostly in 3 and 5. we could also try replicting the heatmap with only these genes to get that little snapshot, but tbh honest I'm not sure it's worth it. 
+
 looks good! next thing is GO enrichment on the clusters
 ```{r}
 clust1 <- filter(inc5, cluster == 1) %>% 
@@ -323,16 +367,25 @@ go$cluster <- as.factor(go$cluster)
 
 colour_key <- tibble(term_type = c("F", "C", "P"), colour = c("blue", "green", "red"))
 
-go <- join(go, colour_key, by = "term_type")
+go <- merge(go, colour_key, by = "term_type")
 
 #need this gross workaround for some reason
 thingy <-  paste("<span style = 'color: ", go$colour, ";'>", go$Term, "<span>", sep = "")
 go <- cbind(go, thingy= thingy)
+
+#instead of the number of genes associated with each term for dot size, let's try using the percent of genes in each cluster (so that the smaller clusters don't just have a bunch of tiny dots)
+go <- go %>% mutate(percent = case_when(
+  cluster == 1 ~ queryitem / 106,
+  cluster == 2 ~ queryitem / 55, 
+  cluster == 3 ~ queryitem / 110, 
+  cluster == 4 ~ queryitem / 148,
+  cluster ==5 ~ queryitem / 194
+))
 ```
 
 ```{r}
 png("test.png", units="in", width=12, height=15, res=300)
-ggplot(go, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = queryitem, label = cluster))+
+ggplot(go, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = percent, label = cluster))+
   geom_point()+
   scale_colour_gradient(low = "blue", high = "red")+
   theme_bw()+
@@ -349,7 +402,7 @@ filtered <- filter(go, grepl("translation|ribo|response|photo|phospho|metabol|ox
 
 ```{r}
 png("test.png", units="in", width=12, height=15, res=300)
-ggplot(filtered, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = queryitem, label = cluster))+
+ggplot(filtered, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), size = percent, label = cluster))+
   geom_point()+
   scale_colour_gradient(low = "blue", high = "red")+
   theme_bw()+
@@ -358,6 +411,93 @@ ggplot(filtered, aes(x = fct_inorder(cluster), y = thingy, colour = log10(FDR), 
         legend.title = element_text(size = 15))+
   labs(x = "",
     y = "GO term",
-    size = "Number of Genes")
+    size = "Percent of Genes in Cluster")
 dev.off()
+```
+
+let's make a venn diagram of some of the more populated comps. specifically the developmental ones and the 20% SWC ones. since we can only have 7 sets, lets see in K40wL40w and K60wL60w are similar, cause they're basically the same size.
+```{r}
+K40wL40w <- unique(vm_k40wl40w$GeneID)
+K60wL60w <- unique(vm_k60wl60w$GeneID)
+w6040 <- list(K40dL40w, K60wL60w)
+ggVennDiagram(w6040,
+              label_color = "white",
+              label_size = 3,
+              label_alpha = 0,
+              label = "percent",
+              category.names = c("K40wL40w", "K60wL60w"),
+              set_size = 4,
+              edge_size = 3)
+```
+ok so apparently they're incredibly different
+maybe then we'll just stick to all the 20%s
+
+```{r}
+K20dK20w <- unique(vm_k20dk20w$GeneID)
+L20dL20w <- unique(vm_l20dl20w$GeneID)
+K20dL20d <- unique(vm_k20dl20d$GeneID)
+K20wL20w <- unique(vm_k20wl20w$GeneID)
+twenty <- list(K20dK20w, L20dL20w, K20dL20d, K20wL20w)
+ggVennDiagram(twenty,
+              label_color = "white",
+              label_size = 3,
+              label_alpha = 0,
+              label = "percent",
+              category.names = c("K20dK20w", "L20dL20w", "K20dL20d", "K20wL20w"),
+              set_size = 4,
+              edge_size = 1)
+```
+
+ok so apparently these are all different too. arguably then, AS is highly specific and regulated (or our dataset is highly noisy...)
+there's an interesting overlap between L20dL20w and K20dL20d, which is probably driven by L20d being a monster
+
+we've identified 2 candidate genes for further study: XTH31 and SAD1. wanna make a line graph that shows relative isoform usage over progressive drought (percent IR isoform and rep isoform). First step is to ensure that each gene has only one splicing event that's significant (not a big deal if it's more, just need to be aware of it). then we can pull out the PSI for each GC drought timepoint. this'll be cool cause it'll really help show the progressive drought as a timecourse, which it is. for the sake of discussion, we should also figure out which clusters these genes are in (3 or 5 would be ideal, but we can explain it away regardless)
+```{r}
+xth31 <- filter(inc_long, GeneID == "AT3G44990")
+sad1 <- filter(inc_long, GeneID == "AT5G48870")
+#filter(inc5, GeneID.x == "AT3G44990") %>% select(cluster) #XTH31 in cluster 5
+#filter(inc5, GeneID.x == "AT5G48870") %>%  select (cluster) #SAD1 in cluster 5
+```
+ok, so we know the XTH event is IR1 (vast and majiq have the same event). what's the SAD1 one? cause the figure should have the gene structures (a), the line graph (b) and the K20dK20w sashimi plot (c)
+Looked up the event id, it's' IR3. so that's interesting, cause the potential to change the gene structure is less. in fact, i should do a protein domain figure like i did for XTH31 in the CSPB talk, and make that part of (a) (transcript structures and protein domains)
+
+pull out the percent IR over time in GCs. we need to add sd to the inclusion table so we can put error bars on the graph: this is inc_long
+```{r}
+order <- c("Rep_abundance", "AS_percent")
+xth31 <- xth31 %>% filter(group == "K60d" | group == "K40d" | group == "K20d") %>% 
+  mutate("Rep_abundance" = 100 - AS_percent) %>% 
+  mutate(timepoint = str_sub(group, 2, 3)) %>% 
+  pivot_longer(c(AS_percent, Rep_abundance), names_to = "isoform", values_to = "abundance") %>%  mutate(isoform = factor(isoform, levels = order)) %>% 
+  arrange(isoform)
+
+```
+
+```{r}
+ggplot(xth31, aes(x = fct_rev(timepoint), y = abundance, colour = fct_inorder(isoform), group = fct_inorder(isoform)))+
+  geom_point()+
+  geom_line()+
+  geom_errorbar(aes(ymin = abundance - sd, ymax = abundance + sd), width = 0.1)+
+  labs(x = "Timepoint (% SWC)",
+       y = "Abundance (%)")+
+  scale_color_discrete(name = "Isoform", labels = c("XTH31", "XTH31 IR"))
+```
+
+```{r}
+order <- c("Rep_abundance", "AS_percent")
+sad1 <- sad1 %>% filter(group == "K60d" | group == "K40d" | group == "K20d") %>% 
+  mutate("Rep_abundance" = 100 - AS_percent) %>% 
+  mutate(timepoint = str_sub(group, 2, 3)) %>% 
+  pivot_longer(c(AS_percent, Rep_abundance), names_to = "isoform", values_to = "abundance") %>%  mutate(isoform = factor(isoform, levels = order)) %>% 
+  arrange(isoform)
+
+```
+
+```{r}
+ggplot(sad1, aes(x = fct_rev(timepoint), y = abundance, colour = fct_inorder(isoform), group = fct_inorder(isoform)))+
+  geom_point()+
+  geom_line()+
+  geom_errorbar(aes(ymin = abundance - sd, ymax = abundance + sd), width = 0.1)+
+  labs(x = "Timepoint (% SWC)",
+       y = "Abundance (%)")+
+  scale_color_discrete(name = "Isoform", labels = c("SAD1", "SAD1 IR"))
 ```

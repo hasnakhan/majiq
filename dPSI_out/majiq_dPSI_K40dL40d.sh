@@ -1,2 +1,0 @@
-#!/bin/bash
-majiq deltapsi -j 3 -o /mnt/c/Users/hasna/Documents/MSc_project/majiq/dPSI_out/K40dL40d -grp1 /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out/D7K40d1_sorted.majiq /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out/D7K40d2_sorted.majiq -grp2 /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out/D6L40d1_sorted.majiq /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out/D6L40d2_sorted.majiq /mnt/c/Users/hasna/Documents/MSc_project/majiq/build_out/D6L40d3_sorted.majiq -n K40d L40d

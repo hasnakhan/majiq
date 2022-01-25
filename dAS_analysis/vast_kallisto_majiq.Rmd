@@ -295,7 +295,7 @@ K60wL60w <- unite(K60wL60w, prog, c(prog1, prog2, prog3), na.rm = T, remove = F)
 
 step5: rbind, group_by, summarize and plot!
 ```{r}
-order <- c("K20dK20w", "K40dK40w", "K60dK60w", "L20dL20w", "L40dL40w", "L60dL60w", "K20dL20d", "K40dL40d", "K60dL60d", "K20wL20w", "K40wL40w", "K60wL60w")
+order <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w", "K60dL60d", "K40dL40d", "K20dL20d", "K60wL60w", "K40wL40w", "K20wL20w")
 
 all <- rbind(K20dK20w, K40dK40w, K60dK60w, L20dL20w, L40dL40w, L60dL60w, K20dL20d, K40dL40d, K60dL60d, K20wL20w, K40wL40w, K60wL60w)
 to_plot <- all %>% group_by(prog, comp, prog_vm) %>% 
