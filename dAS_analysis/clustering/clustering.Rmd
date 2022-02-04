@@ -6,10 +6,17 @@ output: html_document
 this (in theory) is gonna make a clustered heatmap of PSI for all the dAS genes. Briefly, dAS genes were identified as detected by both majiq and vast in at least one comparison (sashimi scoring indicated that events predicted by vast and majiq were well reflected in genomic alignments). For all dAS genes, we identified the PSI predicted by vast (but again, sashimi scoring showed that vast and majiq line up well and the vast output is easier to work with) for each event of each dAS gene in each treatment group. We then performed k-means clustering, plotted a heatmap of the PSI for each event in each cluster and performed GO enrichment analysis on each cluster.
 
 ```{r}
-library(tidyverse)
 library(ComplexHeatmap)
 library(ggVennDiagram)
 library(ggtext)
+library(MASS)
+library(spatstat)
+library(ggrepel)
+library(psych)
+library(patchwork)
+library(RColorBrewer)
+library(palettetown)
+library(tidyverse)
 ```
 
 vast-tools:
@@ -500,4 +507,63 @@ ggplot(sad1, aes(x = fct_rev(timepoint), y = abundance, colour = fct_inorder(iso
   labs(x = "Timepoint (% SWC)",
        y = "Abundance (%)")+
   scale_color_discrete(name = "Isoform", labels = c("SAD1", "SAD1 IR"))
+```
+
+PCA: run up until chunk 4, then stop (after that we filter for dAS genes only and average the reps, for PCA I want all of it)
+then run this:
+```{r}
+inc_pca <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+inc_pca <- merge(inc_pca, db, by = "EVENT", all.x = T)
+```
+
+
+```{r}
+inc_pca <- inc_pca %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", "COMPLEX")) %>% 
+  pivot_longer(cols = -c(EVENT, GeneID), names_to = "sample", values_to = "PSI") %>% 
+  mutate("group" = case_when(grepl("K20d", sample) ~ "K20d",
+                             grepl("K40d", sample) ~ "K40d",
+                             grepl("K60d", sample) ~ "K60d",
+                             grepl("L20d", sample) ~ "L20d",
+                             grepl("L40d", sample) ~ "L40d",
+                             grepl("L60d", sample) ~ "L60d",
+                             grepl("K20W", sample) ~ "K20w",
+                             grepl("K40W", sample) ~ "K40w",
+                             grepl("K60W", sample) ~ "K60w",
+                             grepl("L20W", sample) ~ "L20w",
+                             grepl("L40W", sample) ~ "L40w",
+                             grepl("L60W", sample) ~ "L60w",
+                             grepl("Lrw", sample) ~ "Lrw",
+                             grepl("Krw", sample) ~ "Krw"))%>% 
+  mutate("AS_percent" = ifelse(
+  grepl("AthEX.*", EVENT), 100 - PSI, PSI
+  ))
+inc_pca$GeneID <- NULL
+inc_pca$PSI <- NULL
+#now we have to pivot wider again for pca
+inc_pca <- inc_pca %>% pivot_wider(names_from = EVENT, values_from = AS_percent)
+pca <- inc_pca %>% select(-c(sample, group))
+#pca[is.na(pca)] <- 0
+```
+
+```{r}
+as_pca <- prcomp(na.omit(pca))
+summary(as_pca)
+as_pca$x
+pca_data <- cbind(as_pca$x, inc_pca$sample, inc_pca$group)
+pca_data <- as.data.frame(pca_data)
+```
+
+```{r}
+ggplot(pca_data, aes(x = PC1, y = PC2, colour = V44))+
+  geom_point(size = 6)
+#aight, so it looks like there's too much variability for this to really be meaningful... PC1 is ~6% and PC2 is ~4%, so this graph captures very little actual information
+```
+
+what if we cap it at 2 PCs?
+```{r}
+as_pca2 <- prcomp(pca, rank. = 2)
+summary(as_pca2)
+#this doesn't change anything...
 ```
