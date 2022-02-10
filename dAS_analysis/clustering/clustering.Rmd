@@ -5,6 +5,8 @@ output: html_document
 
 this (in theory) is gonna make a clustered heatmap of PSI for all the dAS genes. Briefly, dAS genes were identified as detected by both majiq and vast in at least one comparison (sashimi scoring indicated that events predicted by vast and majiq were well reflected in genomic alignments). For all dAS genes, we identified the PSI predicted by vast (but again, sashimi scoring showed that vast and majiq line up well and the vast output is easier to work with) for each event of each dAS gene in each treatment group. We then performed k-means clustering, plotted a heatmap of the PSI for each event in each cluster and performed GO enrichment analysis on each cluster.
 
+
+later on we also tried grouping the treatments together, using both PCA and hierarchical clustering to see what patterns there are (Anna does a similar analysis in a committee report, and Calarco suggested it to me as well)
 ```{r}
 library(ComplexHeatmap)
 library(ggVennDiagram)
@@ -233,8 +235,13 @@ inc <- inc %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", 
 inc$mean <- NULL
 inc_long <- inc
 inc$sd <- NULL
+
 #now we have to pivot wider again for k means
-inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
+#inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
+
+#pivot wider the other way for hclust
+inc$GeneID <- NULL
+inc <- inc %>% pivot_wider(names_from = EVENT, values_from = AS_percent)
 ```
 
 that's all set up then, next thing is k-means clustering. let's start with a scree plot
@@ -544,26 +551,88 @@ inc_pca$PSI <- NULL
 #now we have to pivot wider again for pca
 inc_pca <- inc_pca %>% pivot_wider(names_from = EVENT, values_from = AS_percent)
 pca <- inc_pca %>% select(-c(sample, group))
-#pca[is.na(pca)] <- 0
 ```
 
 ```{r}
-as_pca <- prcomp(na.omit(pca))
-summary(as_pca)
-as_pca$x
-pca_data <- cbind(as_pca$x, inc_pca$sample, inc_pca$group)
-pca_data <- as.data.frame(pca_data)
-```
-
-```{r}
-ggplot(pca_data, aes(x = PC1, y = PC2, colour = V44))+
+#PCA1: remove events where all are NA
+#can't seem to make this work for some reason, but it wasn't telling us anything anyway
+find_all_na <- function(x) any(!is.na(x))
+pca1 <- pca %>% select(where(find_all_na))
+pca1 <- pca1[is.na(pca1)] <- 0
+as_pca1 <- prcomp(pca1)
+summary(as_pca1)
+as_pca1$x
+pca_data1 <- cbind(as_pca1$x, inc_pca$sample, inc_pca$group)
+pca_data1 <- as.data.frame(pca_data1)
+ggplot(pca_data1, aes(x = PC1, y = PC2, colour = V44))+
   geom_point(size = 6)
 #aight, so it looks like there's too much variability for this to really be meaningful... PC1 is ~6% and PC2 is ~4%, so this graph captures very little actual information
 ```
 
-what if we cap it at 2 PCs?
 ```{r}
-as_pca2 <- prcomp(pca, rank. = 2)
+#PCA2: remove events where any rows are NA
+find_any_na <- function(x) all(!is.na(x))
+pca2 <- pca %>% select(where(find_any_na))
+as_pca2 <- prcomp(pca2)
 summary(as_pca2)
-#this doesn't change anything...
+as_pca2$x
+pca_data2 <- cbind(as_pca2$x, inc_pca$sample, inc_pca$group)
+pca_data2 <- as.data.frame(pca_data2)
+pca_data2$cell_type <- str_sub(pca_data2$V44, 1, 1)
+pca_data2$condition <- as.factor(str_sub(pca_data2$V44, 2, 4))
+ggplot(pca_data2, aes(x = PC1, y = PC2, colour = cell_type, shape = condition))+
+  scale_shape_manual(values=1:nlevels(pca_data3$condition))+
+  geom_point(size = 6)+
+    theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())+
+  labs(x = "PC1 (8%)",
+       y = "PC2 (6%)")
 ```
+
+```{r}
+#PCA3: only dAS events (same ones we used for k-means)
+events <- unique(vm_allcomps$EVENT.x)
+pca3 <- subset(pca, select = events)
+as_pca3 <- prcomp(pca3)
+summary(as_pca3)
+as_pca3$x
+pca_data3 <- cbind(as_pca3$x, inc_pca$sample, inc_pca$group)
+pca_data3 <- as.data.frame(pca_data3)
+pca_data3$cell_type <- str_sub(pca_data3$V44, 1, 1)
+pca_data3$condition <- as.factor(str_sub(pca_data3$V44, 2, 4))
+ggplot(pca_data3, aes(x = PC1, y = PC2, colour = cell_type, shape = condition))+
+  scale_shape_manual(values=1:nlevels(pca_data3$condition))+
+  geom_point(size = 6)+
+    theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())+
+  labs(x = "PC1 (44%)",
+       y = "PC2 (15%)")
+```
+
+ok, how about hierarchical clustering? this will be somewhat similar. we still need an input df where rows are samples and columns are genes, which is what we have in the pca dfs (pca1, 2 and 3). we then need to convert these to dissimilarity matrices and run hclust. I wonder if it makes more sense to average the replicates (as we did for k-means) or keep them separate. for now I'll try keeping them separate, but if it's too messy we might need to rethink this
+```{r}
+#let's just use the dAS events for now
+hc3 <- pca3
+row.names(hc3) <- str_sub(inc_pca$sample, 1, 7)
+hc3 <- dist(hc3, method = "euclidean")
+as_hc3 <- hclust(hc3, method = "ward.D" )
+plot(as_hc3, cex = 0.6, hang = -1)
+rect.hclust(as_hc3, 4)
+```
+
+that looks good! to cluster by replicate averages, go back up and run chunk 9 and 10 (hclust part)
+```{r}
+inc_dist <- inc
+names <- inc_dist$group
+inc_dist$group <- NULL
+row.names(inc_dist) <- names
+inc_dist <- dist(inc_dist, method = "euclidean")
+as_inc_dist <- hclust(inc_dist, method = "ward.D" ) 
+plot(as_inc_dist, cex = 0.6, hang = -1)
+rect.hclust(as_inc_dist, 3)
+```
+
