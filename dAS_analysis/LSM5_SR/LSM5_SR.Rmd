@@ -1,0 +1,198 @@
+---
+title: "LSM5_SR"
+output: html_document
+---
+
+here we're looking into the effects of 1. LSM5 dAS and 2. SR protein DE on global splicing patterns. LSM5 dPSIs are from my vast data (as with all the vast-majiq genes), and the SR RPKMs are from ePlant (Anna's data). The code begins as usual, reading in the vast and majiq events, finding the intersection, and setting up the appropriate groups. To start off with, we're only really interested in the drought-induced comps, but we may add in dev comps later (if so, we can add a couple more SR proteins that are DE between K and L watered samples)
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+vast-tools:
+```{r}
+vast_k20dk20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20d-K20w_68events/K20d-K20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20dK20w"))
+
+vast_k20dl20d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20d-L20d_327events/K20d-L20d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20dL20d"))
+
+vast_k20wl20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K20w-L20w_196events/K20w-L20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K20wL20w"))
+
+vast_k40dk40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40d-K40w_23events/K40d-K40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40dK40w"))
+
+vast_k40dl40d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40d-L40d_168events/K40d-L40d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40dL40d"))
+
+vast_k40wl40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K40w-L40w_69events/K40w-L40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K40wL40w"))
+
+vast_k60dk60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60d-K60w_6events/K60d-K60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60dK60w"))
+
+vast_k60dl60d <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60d-L60d_94events/K60d-L60d_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60dL60d"))
+
+vast_k60wl60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/K60w-L60w_58events/K60w-L60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("K60wL60w"))
+
+vast_l20dl20w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L20d-L20w_706events/L20d-L20w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L20dL20w"))
+
+vast_l40dl40w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L40d-L40w_27events/L40d-L40w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L40dL40w"))
+
+vast_l60dl60w <- read_delim("../../../vasttools/all_data/dPSI25_no_merging_all_reps/L60d-L60w_5events/L60d-L60w_compare_ouput_complete.tab", col_names = T, delim = "\t") %>% 
+  select(GeneID, EVENT.x) %>% 
+  mutate(prog = c("vast-tools"), comp = c("L60dL60w"))
+```
+
+majiq:
+```{r}
+majiq_k20dk20w <- read_delim("../../../majiq/dAS_analysis/filter25/K20dK20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20dK20w"))
+
+majiq_k40dk40w <- read_delim("../../../majiq/dAS_analysis/filter25/K40dK40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40dK40w"))
+
+majiq_k60dk60w <- read_delim("../../../majiq/dAS_analysis/filter25/K60dK60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60dK60w"))
+
+majiq_l20dl20w <- read_delim("../../../majiq/dAS_analysis/filter25/L20dL20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L20dL20w"))
+
+majiq_l40dl40w <- read_delim("../../../majiq/dAS_analysis/filter25/L40dL40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L40dL40w"))
+
+majiq_l60dl60w <- read_delim("../../../majiq/dAS_analysis/filter25/L60dL60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("L60dL60w"))
+
+majiq_k20dl20d <- read_delim("../../../majiq/dAS_analysis/filter25/K20dL20d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20dL20d"))
+
+majiq_k40dl40d <- read_delim("../../../majiq/dAS_analysis/filter25/K40dL40d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40dL40d"))
+
+majiq_k60dl60d <- read_delim("../../../majiq/dAS_analysis/filter25/K60dL60d.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60dL60d"))
+
+majiq_k20wl20w <- read_delim("../../../majiq/dAS_analysis/filter25/K20wL20w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K20wL20w"))
+
+majiq_k40wl40w <- read_delim("../../../majiq/dAS_analysis/filter25/K40wL40w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K40wL40w"))
+
+majiq_k60wl60w <- read_delim("../../../majiq/dAS_analysis/filter25/K60wL60w.tsv", delim = "\t") %>% 
+  select(`Gene ID`) %>% 
+  mutate(prog = c("majiq"), comp = c("K60wL60w"))
+```
+
+pull out the vast events where dAS of that gene was also identified by maijq
+```{r}
+vm_k20dk20w <- filter(vast_k20dk20w, GeneID %in% majiq_k20dk20w$`Gene ID`)
+vm_k40dk40w <- filter(vast_k40dk40w, GeneID %in% majiq_k40dk40w$`Gene ID`)
+vm_k60dk60w <- filter(vast_k60dk60w, GeneID %in% majiq_k60dk60w$`Gene ID`)
+vm_l20dl20w <- filter(vast_l20dl20w, GeneID %in% majiq_l20dl20w$`Gene ID`)
+vm_l40dl40w <- filter(vast_l40dl40w, GeneID %in% majiq_l40dl40w$`Gene ID`)
+vm_l60dl60w <- filter(vast_l60dl60w, GeneID %in% majiq_l60dl60w$`Gene ID`)
+vm_k20dl20d <- filter(vast_k20dl20d, GeneID %in% majiq_k20dl20d$`Gene ID`)
+vm_k40dl40d <- filter(vast_k40dl40d, GeneID %in% majiq_k40dl40d$`Gene ID`)
+vm_k60dl60d <- filter(vast_k60dl60d, GeneID %in% majiq_k60dl60d$`Gene ID`)
+vm_k20wl20w <- filter(vast_k20wl20w, GeneID %in% majiq_k20wl20w$`Gene ID`)
+vm_k40wl40w <- filter(vast_k40wl40w, GeneID %in% majiq_k40wl40w$`Gene ID`)
+vm_k60wl60w <- filter(vast_k60wl60w, GeneID %in% majiq_k60wl60w$`Gene ID`)
+vm_allcomps <- rbind(vm_k20dk20w, vm_k20dl20d, vm_k20wl20w, vm_k40dk40w, vm_k40dl40d, vm_k40wl40w, vm_k60dk60w, vm_k60dl60d, vm_k60wl60w, vm_l20dl20w, vm_l40dl40w, vm_l60dl60w)
+
+#this is useful for candidate genes, let's write it out
+#write.table(vm_allcomps, "vm_all_dAS_genes.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+let's plot this real quick:
+```{r}
+order1 <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w")
+
+barplot1 <- vm_allcomps %>% filter(comp %in% order1) %>% 
+  group_by(comp) %>% 
+  summarize(count = n()) 
+#add L60dL60w back in (just to make an empty bar)
+L60dL60w <- tibble(comp = "L60dL60w", count = 0)
+barplot1 <- rbind(barplot1, L60dL60w)
+
+barplot1 <- barplot1 %>% mutate(comp = factor(comp, levels = order1)) %>% 
+  arrange(comp)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(barplot1, aes(x = comp, y = count, fill = count))+
+  geom_bar(stat = "identity", fill = "darkturquoise")+
+  labs(y = "Number of dAS genes\n")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())
+
+dev.off()
+```
+
+ok, so all of that code comes from majiq/dAS_analysis/clustering/clustering.Rmd. At this point, we've looked at the global dAS rate across the d-w comps. now we can read in the RPKMs for the SR proteins and plot the log2 FC between d and w (treatment vs control). we expect this to match up with ePlant's relative quantification, so the math should check out. 
+
+```{r}
+#ideally i would put a function around all of this, but it's only 5 genes and I'm feeling especially lazy
+sr30 <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At1g09140")
+sr30 <- sr30 %>% group_by(condition) %>% 
+  summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
+  mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
+final <- data.frame()
+
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(sr30, grepl(comp, condition))
+  temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
+  temp_se <- log2(comp$se[1] / comp$se[2])
+  row <- c(name, temp_l2fc, temp_se)
+  final <- rbind(final, row)
+}
+colnames(final) <- c("comp", "log2FC", "SE")
+final$log2FC <- as.numeric(final$log2FC)
+final$SE <- as.numeric(final$SE)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "salmon")+
+  #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
+  #ask Nick how to do this!!
+  labs(y = "SR30 log2FC \n vs watered control")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
