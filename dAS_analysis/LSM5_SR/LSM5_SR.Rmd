@@ -160,13 +160,14 @@ dev.off()
 
 ok, so all of that code comes from majiq/dAS_analysis/clustering/clustering.Rmd. At this point, we've looked at the global dAS rate across the d-w comps. now we can read in the RPKMs for the SR proteins and plot the log2 FC between d and w (treatment vs control). we expect this to match up with ePlant's relative quantification, so the math should check out. 
 
+SR30(AT1G09140)
 ```{r}
 #ideally i would put a function around all of this, but it's only 5 genes and I'm feeling especially lazy
 sr30 <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At1g09140")
 sr30 <- sr30 %>% group_by(condition) %>% 
   summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
   mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
-final <- data.frame()
+final_sr30 <- data.frame()
 
 groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
 for (comp in groups){
@@ -175,20 +176,238 @@ for (comp in groups){
   temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
   temp_se <- log2(comp$se[1] / comp$se[2])
   row <- c(name, temp_l2fc, temp_se)
-  final <- rbind(final, row)
+  final_sr30 <- rbind(final_sr30, row)
 }
-colnames(final) <- c("comp", "log2FC", "SE")
-final$log2FC <- as.numeric(final$log2FC)
-final$SE <- as.numeric(final$SE)
+colnames(final_sr30) <- c("comp", "log2FC", "SE")
+final_sr30$log2FC <- as.numeric(final_sr30$log2FC)
+final_sr30$SE <- as.numeric(final_sr30$SE)
 ```
 
 ```{r}
 png("test.png", units="in", width=10, height=4, res=300)
-ggplot(final, aes(x = fct_inorder(comp), y = log2FC))+
-  geom_bar(stat = "identity", fill = "salmon")+
+ggplot(final_sr30, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "purple3")+
   #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
   #ask Nick how to do this!!
-  labs(y = "SR30 log2FC \n vs watered control")+
+  labs(y = "SR30 log2FC \n vs watered control",
+       title = "SR30 (AT1G09140)")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
+SR34b (AT4G02430)
+```{r}
+sr34b <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At4g02430")
+sr34b <- sr34b %>% group_by(condition) %>% 
+  summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
+  mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
+final_sr34b  <- data.frame()
+
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(sr34b, grepl(comp, condition))
+  temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
+  temp_se <- log2(comp$se[1] / comp$se[2])
+  row <- c(name, temp_l2fc, temp_se)
+  final_sr34b  <- rbind(final_sr34b , row)
+}
+colnames(final_sr34b) <- c("comp", "log2FC", "SE")
+final_sr34b$log2FC <- as.numeric(final_sr34b$log2FC)
+final_sr34b$SE <- as.numeric(final_sr34b$SE)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final_sr34b, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "orchid1")+
+  #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
+  labs(y = "SR34b log2FC \n vs watered control",
+       title = "SR34b (AT4G02430)")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
+RSZ22a (At2g24590)
+```{r}
+RSZ22a <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At2g24590")
+RSZ22a <- RSZ22a %>% group_by(condition) %>% 
+  summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
+  mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
+final_RSZ22a  <- data.frame()
+
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(RSZ22a, grepl(comp, condition))
+  temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
+  temp_se <- log2(comp$se[1] / comp$se[2])
+  row <- c(name, temp_l2fc, temp_se)
+  final_RSZ22a  <- rbind(final_RSZ22a , row)
+}
+colnames(final_RSZ22a) <- c("comp", "log2FC", "SE")
+final_RSZ22a$log2FC <- as.numeric(final_RSZ22a$log2FC)
+final_RSZ22a$SE <- as.numeric(final_RSZ22a$SE)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final_RSZ22a, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "tomato")+
+  #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
+  labs(y = "RSZ22a log2FC \n vs watered control",
+       title = "RSZ22a (AT2G24590)")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
+
+RSZ33 (At2g37340)
+```{r}
+RSZ33 <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At2g37340")
+RSZ33 <- RSZ33 %>% group_by(condition) %>% 
+  summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
+  mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
+final_RSZ33  <- data.frame()
+
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(RSZ33, grepl(comp, condition))
+  temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
+  temp_se <- log2(comp$se[1] / comp$se[2])
+  row <- c(name, temp_l2fc, temp_se)
+  final_RSZ33 <- rbind(final_RSZ33, row)
+}
+colnames(final_RSZ33) <- c("comp", "log2FC", "SE")
+final_RSZ33$log2FC <- as.numeric(final_RSZ33$log2FC)
+final_RSZ33$SE <- as.numeric(final_RSZ33$SE)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final_RSZ33, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "orange")+
+  #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
+  labs(y = "RSZ33 log2FC \n vs watered control",
+       title = "RSZ33 (AT2G37340)")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
+
+SCL30a (At3g13570)
+```{r}
+SCL30a <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At3g13570")
+SCL30a <- SCL30a %>% group_by(condition) %>% 
+  summarize(mean = mean(RPKM), count = n(), sd = sd(RPKM)) %>% 
+  mutate(se = (sd / (sqrt(count))), cond = str_sub(condition, -1))
+final_SCL30a  <- data.frame()
+
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(SCL30a, grepl(comp, condition))
+  temp_l2fc <- log2(comp$mean[1] / comp$mean[2])
+  temp_se <- log2(comp$se[1] / comp$se[2])
+  row <- c(name, temp_l2fc, temp_se)
+  final_SCL30a <- rbind(final_SCL30a, row)
+}
+colnames(final_SCL30a) <- c("comp", "log2FC", "SE")
+final_SCL30a$log2FC <- as.numeric(final_SCL30a$log2FC)
+final_SCL30a$SE <- as.numeric(final_SCL30a$SE)
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final_SCL30a, aes(x = fct_inorder(comp), y = log2FC))+
+  geom_bar(stat = "identity", fill = "forestgreen")+
+  #geom_errorbar(aes(ymin = log2FC - SE, ymax = log2FC + SE
+  labs(y = "SCL30a log2FC \n vs watered control",
+       title = "SCL30a (At3g13570)")+
+  theme_minimal()+
+  theme(axis.title.x = element_blank())+
+  geom_hline(yintercept = 0)
+
+dev.off()
+```
+
+what about LSM5? It's not DE, but it is dAS. Is its dPSI linked to global splicing?
+first we gotta read in the inclusion table, merge it to the geneID-vastID db and pull out sad1 avg dPSI across the replicates
+```{r}
+events <- unique(vm_allcomps$EVENT.x)
+
+sad1 <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+sad1 <- merge(sad1, db, by = "EVENT", all.x = T)
+sad1 <- filter(sad1, EVENT %in% events)
+```
+
+next thing is to average the PSI across replicates. I'm thinking to get rid of the quality scores column, and then pivot longer, and then add a column for treatment group, and then group by treatment and event and summarize the mean?
+
+```{r}
+sad1 <- sad1 %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", "COMPLEX")) %>% 
+  pivot_longer(cols = -c(EVENT, GeneID), names_to = "sample", values_to = "PSI") %>% 
+  mutate("group" = case_when(grepl("K20d", sample) ~ "K20d",
+                             grepl("K40d", sample) ~ "K40d",
+                             grepl("K60d", sample) ~ "K60d",
+                             grepl("L20d", sample) ~ "L20d",
+                             grepl("L40d", sample) ~ "L40d",
+                             grepl("L60d", sample) ~ "L60d",
+                             grepl("K20W", sample) ~ "K20w",
+                             grepl("K40W", sample) ~ "K40w",
+                             grepl("K60W", sample) ~ "K60w",
+                             grepl("L20W", sample) ~ "L20w",
+                             grepl("L40W", sample) ~ "L40w",
+                             grepl("L60W", sample) ~ "L60w",
+                             grepl("Lrw", sample) ~ "Lrw",
+                             grepl("Krw", sample) ~ "Krw")) %>% 
+  group_by(EVENT, GeneID, group) %>% 
+  summarize(mean = mean(PSI), sd = sd (PSI), count = n()) %>% 
+  mutate("AS_percent" = ifelse(
+  grepl("AthEX.*", EVENT), 100 - mean, mean
+  ),
+  se = sd/(sqrt(count))) %>% 
+  filter(GeneID == "AT5G48870")
+
+```
+```{r}
+final_lsm5 <- data.frame()
+groups <- c("K60", "K40", "K20", "L60", "L40", "L20")
+for (comp in groups){
+  name <- comp
+  comp <- filter(sad1, grepl(comp, group))
+  temp_dPSI <- comp$AS_percent[1] - comp$AS_percent[2]
+  temp_se <- sqrt((comp$se[1]^2) + (comp$se[2]^2))
+  row <- c(name, temp_dPSI, temp_se)
+  final_lsm5 <- rbind(final_lsm5, row)
+}
+colnames(final_lsm5) <- c("comp", "dPSI", "SE")
+final_lsm5$dPSI <- as.numeric(final_lsm5$dPSI)
+final_lsm5$SE <- as.numeric(final_lsm5$SE)
+```
+
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(final_lsm5, aes(x = fct_inorder(comp), y = dPSI))+
+  geom_bar(stat = "identity", fill = "seagreen2")+
+  geom_errorbar(aes(ymin = dPSI - SE, ymax = dPSI + SE), width = 0.2)+
+  labs(y = "LSM5 dPSI \n vs watered control",
+       title = "LSM5 (AT5G48870)")+
   theme_minimal()+
   theme(axis.title.x = element_blank())+
   geom_hline(yintercept = 0)
