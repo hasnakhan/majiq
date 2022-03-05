@@ -1,0 +1,77 @@
+---
+title: "dAS_DEG"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+one of the main things we should do is compare the dAS and DE gene populations. Firstly, I want to know the gene expression changes associated with all the dAS events (even if the gene isn't "differentially expressed", what's its fold change between the 2 groups in the comparison?). To do this, I need to send Nick a list of gene IDs and treatment groups so that Asher can pull RPKM values for me. I'm going to do this for all of the dAS genes we identified (across the 12 pairwise comps). I'm also going to ask for a random set of genes as a control. This will involve selecting an equal number of splicing events as the dAS population, and assigning them to pairwise comp groups at random. This will then be included in the list to send to Nick. From the BAR dataset, I'll be able to compute FC from RPKM, and can pull PSIs from the vast inclusion table to calculate |dPSI|. The datasets can then be plotted as FC (or log2FC) vs dPSI to look for trends. 
+
+In addition, we should create a simple venn diagram of dAS and DE events (gene + comp group). Then we can look at the intersection, split it by comp group and maybe perform GO enrichment or some other analysis (there may be very few genes here, so we'll see, but individual characterization may be possible). 
+
+For all we work with the vast inclusion table, we should clean it up a bit. specifically, there should be a copy where the quality scores are removed (?) and the PSI for each treatment group is listed. This will make it much easier to calculate dPSI when we want to. 
+
+step 1: get dAS gene list and sample groups
+```{r}
+dAS <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv", delim = "\t")
+
+dAS_list <- dAS %>% select(GeneID, comp) %>% 
+  extract(comp, into = c("group1", "group2"), "(.{4})(.{4})", remove=T) %>% 
+  pivot_longer(c(group1, group2), names_to = "thingy", values_to = "treatment") %>% 
+  select(-thingy) %>% 
+  mutate(thingy = str_c(GeneID, treatment))
+
+#we've got duplicates in here, since our original filter said "pull out all VastDB dAS events where the gene ID matches majiq dAS events". these duplicates are few and far between, since vast would have first needed to identify that event as dAS, and then majiq would have to find a matching gene ID. it would be a pain to re-confirm whether or not vast and majiq are predicting the same events, so we're going with whatever vast had. For the K20dK20w comparison we did manual confirmation in IGV (so those 24 events are in fact the same), but it isn't realistic to do this for everything (this is why we always say that "within a gene, vast and majiq tended to predict the same events", without ever really elaborating). We don't know for sure if vast and majiq are predicting the same event in every case though, and it certainly stands to reason that they aren't always. Who knows, in some cases, vast and majiq may have both predicted multiple events in the same gene, which actually do match up.
+
+final <- as.data.frame(unique(dAS_list$thingy)) %>% 
+  extract("unique(dAS_list$thingy)", into = c("GeneID", "Treatment"), "(.{9})(.{4})", remove=T)
+#so the first 1232 rows of final are the dAS genes
+```
+
+step 2: make a random list of 616 vast events, pull out the associated gene IDs, and match them to random comps
+```{r}
+inc <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+inc <- merge(inc, db, by = "EVENT", all.x = T)
+
+#select 616 random genes, then select a random AS event for them
+set.seed(43)
+ctrl_genes <- sample(inc$GeneID, size = 616, replace = F)
+ctrl_events <- data.frame()
+
+for (gene in ctrl_genes){
+  inc_sub <- inc %>% filter(GeneID == gene)
+  set.seed(43)
+  event <- sample(inc_sub$EVENT, size = 1)
+  ctrl_events <- rbind(ctrl_events, event)
+}
+#the events are just for me for getting the dPSI later, Nick doesn't need that for the RPKM
+colnames(ctrl_events) <- "event"
+ctrl <- tibble("gene" = ctrl_genes, ctrl_events)
+
+comps <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w", "K60dL60d", "K40dL40d", "K20dL20d", "K60wL60w", "K40wL40w", "K20wL20w")
+
+set.seed(43)
+ctrl_comps <- sample(comps, size = 616, replace = T)
+ctrl <- cbind(ctrl, ctrl_comps)
+ctrl <- as.data.frame(ctrl)
+
+#write.table(ctrl, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/control_group.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+
+#write out the list with comps included to get dPSI later. To get RPKM, we just need gene ID and treatment, so set that up and append it to final
+
+ctrl_final <- ctrl %>% select(gene, ctrl_comps) %>% 
+  extract(ctrl_comps, into = c("group1", "group2"), "(.{4})(.{4})", remove=T) %>% 
+  pivot_longer(c(group1, group2), names_to = "thingy", values_to = "treatment") %>% 
+  select(-thingy) 
+colnames(ctrl_final) <- c("GeneID", "Treatment")
+
+final <- rbind(final, ctrl_final)
+#the second 1232 rows (616) genes are the control group
+#write.table(final, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/dAS_genes.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
