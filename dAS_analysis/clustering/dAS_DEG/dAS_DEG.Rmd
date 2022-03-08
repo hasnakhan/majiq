@@ -75,3 +75,10 @@ final <- rbind(final, ctrl_final)
 #write.table(final, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/dAS_genes.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
 ```
 
+get geneIDs only
+```{r}
+thingy <- read_delim("dAS_genes.tsv")
+thingy <- thingy %>% select(GeneID)
+#write.table(thingy, "dAS_geneID.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
