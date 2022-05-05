@@ -5,6 +5,8 @@ output: html_document
 
 ```{r}
 library(tidyverse)
+library(readxl)
+library(ggVennDiagram)
 ```
 
 
@@ -80,5 +82,285 @@ get geneIDs only
 thingy <- read_delim("dAS_genes.tsv")
 thingy <- thingy %>% select(GeneID)
 #write.table(thingy, "dAS_geneID.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+```
+
+everything so far has been done to generate the list of genes to investigate (dAS genes and control genes, as well as their comp groups). Now we need to pull dPSIs for those genes. When the time comes, we will also need to get RPKMs, but we need Nick and Asher's data for that. none of the above code should be run for the following analysis.
+
+need to start from the list of dAS and control genes. This is similar to the code above, but without some of the tidying steps
+```{r}
+dAS <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv", delim = "\t")
+
+dAS <- dAS %>% select(-prog) %>%
+  extract("comp", into = c("group1", "group2"), "(.{4})(.{4})", remove = F) %>% 
+  mutate(set = c("dAS"), event = EVENT.x) %>% 
+  select(-EVENT.x)
+```
+
+to avoid concerns later: why is this dataset not the same size as the one sent to Nick (this is larger)? Because this dataset includes genes-treatment pairs involved in multiple comps. So the number of gene-comp pairs is larger than half the number of gene-treatment pairs (a single gene could be dAS in K20dL20d and L20dL20w for example). This would be 2 gene-comp pairs, but only 3 gene-treatment pairs. The dAS and control sets have the same number of gene-comp pairs, not necessarily the same number of gene-treatment pairs (and there's no easy way to get them both equal, and I don't think it's worth the hassle). Also, for dPSI we need to look at individual events, but for DE we just need to look at genes. 
+
+now on to the control set:
+```{r}
+ctrl <- read_delim("control_group.tsv", delim = "\t") %>% 
+  mutate(set = c("control"), GeneID = gene, comp = ctrl_comps) %>%
+  extract("comp", into = c("group1", "group2"), "(.{4})(.{4})", remove = F) %>% 
+  select(-c(gene, ctrl_comps)) %>% 
+  select(3, 4, 5, 6, 2, 1)
+
+all_events <- rbind(dAS, ctrl)
+#again, there are more events for the dAS, but the same number of genes. since dAS already has >1 events per gene, it would've been a real pain to get the same number of genes AND events for the control set. It's for visualization purposes anyway, so it should be fine.
+```
+
+now we gotta figure out how to mine the inclusion table for PSIs, and then compute dPSI. There's old code that averages the replicates in the inclusion table (which is probably the hardest part), then ideally we write a loop to iterate over the events and pull the PSI for each treatment in the comp, and we can compute dPSI. We should establish a direction (just a conventional thing), so say a positive dPSI is K > L and d > w (and we'll apply the same to FC, so that our analysis accounts for the direction of change). 
+```{r}
+inc <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+inc <- merge(inc, db, by = "EVENT", all.x = T)
+
+#filter the inclusion table to just the events we care about. this will make it much smaller and quicker to work with
+
+inc <- filter(inc, EVENT %in% all_events$event) #while not entirely necessary, this should speed things up
+
+inc <- inc %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO", "COMPLEX")) %>% 
+  pivot_longer(cols = -c(EVENT, GeneID), names_to = "sample", values_to = "PSI") %>% 
+  mutate("group" = case_when(grepl("K20d", sample) ~ "K20d",
+                             grepl("K40d", sample) ~ "K40d",
+                             grepl("K60d", sample) ~ "K60d",
+                             grepl("L20d", sample) ~ "L20d",
+                             grepl("L40d", sample) ~ "L40d",
+                             grepl("L60d", sample) ~ "L60d",
+                             grepl("K20W", sample) ~ "K20w",
+                             grepl("K40W", sample) ~ "K40w",
+                             grepl("K60W", sample) ~ "K60w",
+                             grepl("L20W", sample) ~ "L20w",
+                             grepl("L40W", sample) ~ "L40w",
+                             grepl("L60W", sample) ~ "L60w",
+                             grepl("Lrw", sample) ~ "Lrw",
+                             grepl("Krw", sample) ~ "Krw")) %>% 
+  group_by(EVENT, GeneID, group) %>% 
+  summarize(mean = mean(PSI), sd = sd (PSI)) %>% 
+  mutate("AS_percent" = ifelse(
+  grepl("AthEX.*", EVENT), 100 - mean, mean
+  ))
+inc <- as.data.frame(ungroup(inc))
+```
+
+loop over the all_events df and pull the corresponding PSIs from the inclusion table
+```{r}
+deltaPSI <- data.frame()
+for (i in 1:nrow(all_events)){
+  PSI1 <- filter(inc, EVENT == all_events[[i, 6]] & group == all_events[[i, 3]]) %>% 
+    select(AS_percent)
+  PSI2 <- filter(inc, EVENT == all_events[[i, 6]] & group == all_events[[i, 4]]) %>% 
+    select(AS_percent) 
+  PSI1 <- as.numeric(PSI1)
+  PSI2 <- as.numeric(PSI2)
+  dPSI = PSI1 - PSI2
+  dPSI = as.data.frame(dPSI)
+  PSI1 <- as.data.frame(PSI1)
+  PSI2 <- as.data.frame(PSI2)
+  to_bind <- cbind(PSI1, PSI2, dPSI)
+  deltaPSI <- rbind(deltaPSI, to_bind)
+}
+
+all_events <- cbind(all_events, deltaPSI)
+#there are some NAs in the dPSI for the control samples, so we'll consider this no AS and replace NAs with 0
+all_events$dPSI <- replace_na(all_events$dPSI, 0)
+all_events$PSI1 <- replace_na(all_events$PSI1, 0)
+all_events$PSI2 <- replace_na(all_events$PSI2, 0)
+```
+
+that's dPSI done. Next is RPKM, from which we can calculate FC and log2 FC. I edited the data from Nick and Asher to match my sample naming convention, but that's it so far. Still need to avg the replicates and stuff, but that shouldn't be too different from the inclusion table. Then once it's looking similar, the same for loop with some minor tweaks should work.
+```{r}
+rpkm <- read_delim("filtered_data.tsv", delim = "\t")%>% 
+  pivot_longer(cols = -c(ID), names_to = "sample", values_to = "RPKM") %>% 
+  mutate("group" = case_when(grepl("K20d", sample) ~ "K20d",
+                             grepl("K40d", sample) ~ "K40d",
+                             grepl("K60d", sample) ~ "K60d",
+                             grepl("L20d", sample) ~ "L20d",
+                             grepl("L40d", sample) ~ "L40d",
+                             grepl("L60d", sample) ~ "L60d",
+                             grepl("K20w", sample) ~ "K20w",
+                             grepl("K40w", sample) ~ "K40w",
+                             grepl("K60w", sample) ~ "K60w",
+                             grepl("L20w", sample) ~ "L20w",
+                             grepl("L40w", sample) ~ "L40w",
+                             grepl("L60w", sample) ~ "L60w",
+                             grepl("Lrw", sample) ~ "Lrw",
+                             grepl("Krw", sample) ~ "Krw")) %>% 
+  group_by(ID, group) %>% 
+  summarize(mean = mean(RPKM), sd = sd (RPKM))
+
+rpkm <- as.data.frame(ungroup(rpkm))
+```
+
+get the RPKMs for the samples we want (for loop), cbind it to the all_events df and calculate FC and log2FC
+```{r}
+FC.df <- data.frame()
+for (i in 1:nrow(all_events)){
+  rpkm1 <- filter(rpkm, ID == all_events[[i, 1]] & group == all_events[[i, 3]]) %>% 
+    select(mean)
+  rpkm2 <- filter(rpkm, ID == all_events[[i, 1]] & group == all_events[[i, 4]]) %>% 
+    select(mean) 
+  rpkm1 <- as.numeric(rpkm1)
+  rpkm2 <- as.numeric(rpkm2)
+  FC = rpkm1 / rpkm2
+  rpkm1 <- as.data.frame(rpkm1)
+  rpkm2 <- as.data.frame(rpkm2)
+  FC <- as.data.frame(FC)
+  to_bind_rpkm <- cbind(rpkm1, rpkm2, FC)
+  FC.df <- rbind(FC.df, to_bind_rpkm)
+}
+
+all_events <- cbind(all_events, FC.df)
+all_events <- all_events %>% mutate(log2FC = log(FC, base = 2), 
+                                    comp_type = case_when(
+                                      comp == "K20dK20w" | comp == "K40dK40w"| comp == "K60dK60w" | comp == "L20dL20w" | comp == "L40dL40w" | comp == "L60dL60w" ~ "drought",
+                                      comp == "K20dL20d" | comp == "K40dL40d" | comp == "K60dL60d" | comp == "K20wL20w" | comp == "K40wL40w" | comp == "K60wL60w" ~ "developmental"))
+```
+
+when doing analysis, can just start from here:
+```{r}
+#write.table(all_events, "all_events.tsv", col.names = T, row.names = F, quote = F, sep = "\t")
+
+all_events <- read_delim("all_events.tsv", delim = "\t")
+```
+
+
+ok, let's get a rough idea of what's going on here
+```{r}
+ggplot(all_events, aes(x = dPSI, y = log2FC, colour = set))+
+  geom_point()+
+  coord_cartesian(clip = "off")+
+  geom_text(x = -30, y = -2.8, label = "L > K, w > d", colour = "grey50", check_overlap = T)+
+  geom_text(x = 30, y = -2.8, label = "K > L, d > w", colour = "grey50", check_overlap = T)+
+  geom_text(x = -63, y = -1.5, label = "L > K, w > d", colour = "grey50", check_overlap = T, angle = 90)+
+  geom_text(x = -63, y = 1.5, label = "K > L, d > w", colour = "grey50", check_overlap = T, angle = 90)
+#looks like control genes have less gene exp changes than dAS genes...
+```
+```{r}
+ggplot(all_events, aes(x = abs(dPSI), y = abs(log2FC), colour = set))+
+  geom_point()
+```
+
+
+```{r}
+all_events %>% filter(set == "dAS") %>% 
+  ggplot(., aes(x = dPSI, y = log2FC, colour = comp))+
+  geom_point()+
+  coord_cartesian(clip = "off")+
+  geom_text(x = -30, y = -2.2, label = "L > K, w > d", colour = "grey50", check_overlap = T)+
+  geom_text(x = 30, y = -2.2, label = "K > L, d > w", colour = "grey50", check_overlap = T)+
+  geom_text(x = -61, y = -1, label = "L > K, w > d", colour = "grey50", check_overlap = T, angle = 90)+
+  geom_text(x = -61, y = 1, label = "K > L, d > w", colour = "grey50", check_overlap = T, angle = 90)
+```
+
+what if we colour by comp type?
+```{r}
+all_events %>% filter(set == "dAS") %>% 
+  ggplot(., aes(x = dPSI, y = log2FC, colour = comp_type))+
+  geom_point()+
+  scale_colour_manual(values = c("green", "purple"))+
+  coord_cartesian(clip = "off")+
+  geom_text(x = -30, y = -2.2, label = "L > K, w > d", colour = "grey50", check_overlap = T)+
+  geom_text(x = 30, y = -2.2, label = "K > L, d > w", colour = "grey50", check_overlap = T)+
+  geom_text(x = -61, y = -1, label = "L > K, w > d", colour = "grey50", check_overlap = T, angle = 90)+
+  geom_text(x = -61, y = 1, label = "K > L, d > w", colour = "grey50", check_overlap = T, angle = 90)
+```
+
+
+what about just the K20dK20w?
+```{r}
+all_events %>% filter(comp == "K20dK20w" & set == "dAS") %>% 
+  ggplot(., aes(x = dPSI, y = log2FC))+
+  geom_point(aes(colour = comp))
+```
+
+let's make a venn diagram of dAS and DEGs:
+first, read in and set up the data we need
+```{r}
+#get the dAS genes
+#since Anna didn't compare droughted leaves to droughted GCs, we'll omit those comps as well
+dASG <- all_events %>% filter(set == "dAS", !(comp %in% c("K20dL20d", "K40dL40d", "K60dL60d"))) %>% 
+  select(GeneID, comp) %>% 
+  unite(gene_comp, GeneID:comp, remove = T, sep = "_") %>% 
+  mutate(gene_comp = str_replace_all(gene_comp, c("K20wL20w|K40wL40w|K60wL60w"), "KwLw"))
+
+#DEGs
+#we're not gonna involve directionality here, but we can always dig it out of all_events
+deg_dw <- read_excel("Anna_DEGs.xlsx", sheet = "dw")
+
+#K20dK20w
+deg_k20dk20w <- as.data.frame(c(deg_dw$K20dK20w[2:length(deg_dw$K20dK20w)], deg_dw$...8[2:length(deg_dw$...8)]))
+deg_k20dk20w <- na.omit(deg_k20dk20w)
+deg_k20dk20w$comp <- c("K20dK20w")
+colnames(deg_k20dk20w) <- c("geneid", "comp")
+deg_k20dk20w$genecomp <- paste(deg_k20dk20w$geneid, deg_k20dk20w$comp, sep = "_")
+
+
+#K40dK40w
+deg_k40dk40w <- as.data.frame(c(deg_dw$K40dK40w[2:length(deg_dw$K40dK40w)], deg_dw$...5[2:length(deg_dw$...5)]))
+deg_k40dk40w <- na.omit(deg_k40dk40w)
+deg_k40dk40w$comp <- c("K40dK40w")
+colnames(deg_k40dk40w) <- c("geneid", "comp")
+deg_k40dk40w$genecomp <- paste(deg_k40dk40w$geneid, deg_k40dk40w$comp, sep = "_")
+
+#K60dK60w
+deg_k60dk60w <- as.data.frame(c(deg_dw$K60dK60w[2:length(deg_dw$K60dK60w)], deg_dw$...2[2:length(deg_dw$...2)]))
+deg_k60dk60w <- na.omit(deg_k60dk60w)
+deg_k60dk60w$comp <- c("K60dK60w")
+colnames(deg_k60dk60w) <- c("geneid", "comp")
+deg_k60dk60w$genecomp <- paste(deg_k60dk60w$geneid, deg_k60dk60w$comp, sep = "_")
+
+#L20dL20w
+deg_l20dl20w <- as.data.frame(c(deg_dw$L20dL20w[2:length(deg_dw$L20dL20w)], deg_dw$...17[2:length(deg_dw$...17)]))
+deg_l20dl20w <- na.omit(deg_l20dl20w)
+deg_l20dl20w$comp <- c("L20dL20w")
+colnames(deg_l20dl20w) <- c("geneid", "comp")
+deg_l20dl20w$genecomp <- paste(deg_l20dl20w$geneid, deg_l20dl20w$comp, sep = "_")
+
+#L40dL40w
+deg_l40dl40w <- as.data.frame(c(deg_dw$L40dL40w[2:length(deg_dw$L40dL40w)], deg_dw$...14[2:length(deg_dw$...14)]))
+deg_l40dl40w <- na.omit(deg_l40dl40w)
+deg_l40dl40w$comp <- c("L40dL40w")
+colnames(deg_l40dl40w) <- c("geneid", "comp")
+deg_l40dl40w$genecomp <- paste(deg_l40dl40w$geneid, deg_l40dl40w$comp, sep = "_")
+
+#L60dL60w
+deg_l60dl60w <- as.data.frame(c(deg_dw$L60dL60w[2:length(deg_dw$L60dL60w)], deg_dw$...11[2:length(deg_dw$...11)]))
+deg_l60dl60w <- na.omit(deg_l60dl60w)
+deg_l60dl60w$comp <- c("L60dL60w")
+colnames(deg_l60dl60w) <- c("geneid", "comp")
+deg_l60dl60w$genecomp <- paste(deg_l60dl60w$geneid, deg_l60dl60w$comp, sep = "_")
+
+#KwLw
+deg_kl <- read_excel("Anna_DEGs.xlsx", sheet = "kl")
+deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
+deg_kwlw <- na.omit(deg_kwlw)
+deg_kwlw$comp <- c("KwLw")
+colnames(deg_kwlw) <- c("geneid", "comp")
+deg_kwlw$genecomp <- paste(deg_kwlw$geneid, deg_kwlw$comp, sep = "_")
+
+dAS_genes <- unique(dASG$gene_comp)
+DE_genes <- unique(c(deg_k20dk20w$genecomp, deg_k40dk40w$genecomp, deg_k60dk60w$genecomp, deg_l20dl20w$genecomp, deg_l40dl40w$genecomp, deg_l60dl60w$genecomp, deg_kwlw$genecomp))
+vd <- list(dAS_genes, DE_genes)
+```
+
+```{r}
+ggVennDiagram(vd,
+              label_color = "black",
+              label_alpha = 0,
+              category.names = c("dAS genes", "DE genes"),
+              label_size = 4,
+              set_size = 4,
+              edge_size = 1)+
+  scale_fill_gradient(high = "skyblue4", low = "skyblue")
+```
+
+what's in the middle?
+```{r}
+dASG <- dASG %>% filter(gene_comp %in% DE_genes)
+dASandDE <- unique(dASG$gene_comp)
+dASandDE[grepl("K20dK20w", dASandDE)]
 ```
 
