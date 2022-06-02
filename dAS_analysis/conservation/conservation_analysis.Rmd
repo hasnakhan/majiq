@@ -4,6 +4,338 @@ output: html_document
 ---
 
 ```{r}
+library(phylotools)
+library(Biostrings)
 library(tidyverse)
 ```
+
+```{r}
+files = list.files(pattern="*_orthologs.tsv")
+all_orthologs <- do.call(rbind, lapply(files, read_delim, delim = "\t")) %>% 
+  select(-c(1, 6))
+dAS_genes <- unique(all_orthologs$`Gene Name`)
+```
+
+write a function containing a for loop to got through the orthologs and count how many genes a given species has at least 1 ortholog for. this will help with choosing species for the full analysis. 
+```{r}
+count_orthologs <- function(species){
+  count = 0
+  for (gene in dAS_genes){
+    df <- filter(all_orthologs, `Gene Name` == gene)
+    if (species %in% df$`Ortholog Organism Name`){
+      count = count + 1
+    }
+}
+  return (count)
+}
+
+count_orthologs("Athaliana_TAIR10") #24
+#within Arabidopsis
+count_orthologs("Alyrata_v2.1") #22
+count_orthologs("Ahalleri_v1.1") #22
+
+#within brassicaceae
+count_orthologs("BrapaFPsc_v1.3") #23
+count_orthologs("Crubella_v1.1") #23
+
+#within eudicots
+count_orthologs("Slycopersicum_ITAG4.0") #20
+count_orthologs("Stuberosum_v6.1") #19
+count_orthologs("Gmax_Wm82.a4.v1") #17
+```
+
+```{r}
+Alyrata_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Alyrata_v2.1")
+Ahalleri_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Ahalleri_v1.1")
+Brapa_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "BrapaFPsc_v1.3")
+Crubella_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Crubella_v1.1")
+Gmax_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Gmax_Wm82.a4.v1")
+Slycopersicum_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Slycopersicum_ITAG4.0")
+Stuberosum_orthologs <- filter(all_orthologs, `Ortholog Organism Name` == "Stuberosum_v6.1")
+```
+
+
+pull out the gene IDs for the sequences we'll want
+filter all_orthologs for the correct species name (and version), this will bring with it the Arabidopsis gene ID and the species gene ID. We need the species gene ID to search the transcriptome for the sequence, and we need the Arabidopsis gene ID so we can name the file
+repeat for all species (should write a function for this at some point)
+
+Arabidopsis lyrata cDNA
+```{r}
+Alyrata_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Alyrata.transcript.fa.gz"))
+#pull out gene names only
+Alyrata_transcriptome$seq.name <- str_sub(Alyrata_transcriptome$seq.name, 1, 9)
+
+for(i in 1:nrow(Alyrata_orthologs)){
+  subset <- Alyrata_orthologs[i, ]
+  out <- filter(Alyrata_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Alyrata/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Arabidopsis halleri cDNA
+```{r}
+Ahalleri_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Ahalleri.transcript.fa.gz"))
+#pull out gene names only
+Ahalleri_transcriptome$seq.name <- str_sub(Ahalleri_transcriptome$seq.name, 1, 15)
+
+for(i in 1:nrow(Ahalleri_orthologs)){
+  subset <- Ahalleri_orthologs[i, ]
+  out <- filter(Ahalleri_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Ahalleri/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Brassica rapa cDNA
+```{r}
+Brapa_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/BrapaFPsc.transcript.fa.gz"))
+#pull out gene names only
+Brapa_transcriptome$seq.name <- str_sub(Brapa_transcriptome$seq.name, 1, 12)
+
+for(i in 1:nrow(Brapa_orthologs)){
+  subset <- Brapa_orthologs[i, ]
+  out <- filter(Brapa_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Brapa/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Capsella rubella cDNA
+```{r}
+Crubella_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Crubella.transcript.fa.gz"))
+#pull out gene names only
+Crubella_transcriptome$seq.name <- str_sub(Crubella_transcriptome$seq.name, 1, 15)
+
+for(i in 1:nrow(Crubella_orthologs)){
+  subset <- Crubella_orthologs[i, ]
+  out <- filter(Crubella_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Crubella/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Glycine max cDNA
+```{r}
+Gmax_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Gmax.transcript.fa.gz"))
+#pull out gene names only
+Gmax_transcriptome$seq.name <- str_sub(Gmax_transcriptome$seq.name, 1, 15)
+
+for(i in 1:nrow(Gmax_orthologs)){
+  subset <- Gmax_orthologs[i, ]
+  out <- filter(Gmax_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Gmax/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Solanum lycopersicum cDNA
+```{r}
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_orthologs$`Ortholog Gene Name` <- str_replace(Slycopersicum_orthologs$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_orthologs$`Ortholog Gene Name` <- str_sub(Slycopersicum_orthologs$`Ortholog Gene Name`, 1, 14)
+
+Slycopersicum_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Slycopersicum.transcript.fa.gz"))
+#pull out gene names only
+Slycopersicum_transcriptome$seq.name <- str_sub(Slycopersicum_transcriptome$seq.name, 1, 14)
+
+for(i in 1:nrow(Slycopersicum_orthologs)){
+  subset <- Slycopersicum_orthologs[i, ]
+  out <- filter(Slycopersicum_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Slycopersicum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+Solanum tuberosum cDNA
+```{r}
+Stuberosum_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Stuberosum.transcript.fa.gz"))
+#pull out gene names only
+Stuberosum_transcriptome$seq.name <- str_sub(Stuberosum_transcriptome$seq.name, 1, 18)
+
+for(i in 1:nrow(Stuberosum_orthologs)){
+  subset <- Stuberosum_orthologs[i, ]
+  out <- filter(Stuberosum_transcriptome, seq.name == subset$`Ortholog Gene Name`)
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Stuberosum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_cDNA.fasta", sep = ""))
+}
+```
+
+
+for gDNA, need to first read in gff3 and match gene coordinates to ortholog gene IDs. then can pull sequences and write out gDNA fasta files (similar to how cDNA was done)
+again I should write a function for this 
+
+Arabidopsis lyrata gDNA
+```{r}
+Alyrata_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Alyrata.gene.gff3", delim = "\t", skip = 3, col_names = F) %>% 
+  filter(X3 == "gene") %>% 
+  mutate(X9 = str_sub(X9, 4, 12)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Alyrata_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Alyrata_orthologs <- left_join(Alyrata_orthologs, Alyrata_gff, by = "Ortholog Gene Name")
+
+Alyrata_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Alyrata.fa.gz") %>% 
+  filter(seq.name %in% Alyrata_orthologs$scaffold)
+
+for(i in 1:nrow(Alyrata_orthologs)){
+  subset <- Alyrata_orthologs[i, ]
+  scaffold <- filter(Alyrata_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end )
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Alyrata/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Arabidopsis halleri gDNA
+```{r}
+Ahalleri_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Ahalleri.gene.gff3", delim = "\t", skip = 3, col_names = F) %>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".v1.1.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Ahalleri_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Ahalleri_orthologs <- left_join(Ahalleri_orthologs, Ahalleri_gff, by = "Ortholog Gene Name")
+
+Ahalleri_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Ahalleri.fa.gz") %>% 
+  filter(seq.name %in% Ahalleri_orthologs$scaffold)
+
+for(i in 1:nrow(Ahalleri_orthologs)){
+  subset <- Ahalleri_orthologs[i, ]
+  scaffold <- filter(Ahalleri_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end )
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Ahalleri/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Brassica rapa gDNA
+```{r}
+Brapa_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/BrapaFPSc.gene.gff3", delim = "\t", skip = 3, col_names = F) %>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".v1.3.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Brapa_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Brapa_orthologs <- left_join(Brapa_orthologs, Brapa_gff, by = "Ortholog Gene Name")
+
+Brapa_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/BrapaFPSc.fa.gz") %>% 
+  filter(seq.name %in% Brapa_orthologs$scaffold)
+
+for(i in 1:nrow(Brapa_orthologs)){
+  subset <- Brapa_orthologs[i, ]
+  scaffold <- filter(Brapa_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end )
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Brapa/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Capsella rubella gDNA
+```{r}
+Crubella_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Crubella.gene.gff3", delim = "\t", skip = 3, col_names = F) %>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".v1.1.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Crubella_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Crubella_orthologs <- left_join(Crubella_orthologs, Crubella_gff, by = "Ortholog Gene Name")
+
+Crubella_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Crubella.fa.gz") %>% 
+  filter(seq.name %in% Crubella_orthologs$scaffold)
+
+for(i in 1:nrow(Crubella_orthologs)){
+  subset <- Crubella_orthologs[i, ]
+  scaffold <- filter(Crubella_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end )
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Crubella/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Glycine max gDNA
+```{r}
+Gmax_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Gmax.gene.gff3", delim = "\t", skip = 3, col_names = F) %>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".Wm82.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Gmax_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Gmax_orthologs <- left_join(Gmax_orthologs, Gmax_gff, by = "Ortholog Gene Name")
+
+Gmax_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Gmax.fa.gz") %>% 
+  filter(seq.name %in% Gmax_orthologs$scaffold)
+
+for(i in 1:nrow(Gmax_orthologs)){
+  subset <- Gmax_orthologs[i, ]
+  scaffold <- filter(Gmax_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end)
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Gmax/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Solanum lycopersicum gDNA
+```{r}
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_orthologs$`Ortholog Gene Name` <- str_replace(Slycopersicum_orthologs$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_orthologs$`Ortholog Gene Name` <- str_sub(Slycopersicum_orthologs$`Ortholog Gene Name`, 1, 14)
+
+Slycopersicum_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Slycopersicum.gene.gff3", delim = "\t", skip = 6, col_names = F)%>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".ITAG.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Slycopersicum_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_gff$`Ortholog Gene Name` <- str_replace(Slycopersicum_gff$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_gff$`Ortholog Gene Name` <- str_sub(Slycopersicum_gff$`Ortholog Gene Name`, 1, 14)
+
+Slycopersicum_orthologs <- left_join(Slycopersicum_orthologs, Slycopersicum_gff, by = "Ortholog Gene Name")
+
+Slycopersicum_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Slycopersicum.fa.gz")
+
+#tomato-specific idiocy from spaces at the end of sequence names
+Slycopersicum_genome$seq.name <- str_sub(Slycopersicum_genome$seq.name, 1, 9)
+
+for(i in 1:nrow(Slycopersicum_orthologs)){
+  subset <- Slycopersicum_orthologs[i, ]
+  scaffold <- filter(Slycopersicum_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end)
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Slycopersicum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+Solanum tuberosum gDNA
+```{r}
+Stuberosum_gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Stuberosum.gene.gff3", delim = "\t", skip = 6, col_names = F) %>% 
+  filter(X3 == "gene")%>% 
+  mutate(X9 = gsub(".v6.1.*", "", X9)) %>% 
+  mutate(X9 = gsub("ID=", "", X9)) %>% 
+  select(c(X1, X4, X5, X7, X9))
+colnames(Stuberosum_gff) <- c("scaffold", "start", "end", "strand", "Ortholog Gene Name")
+Stuberosum_orthologs <- left_join(Stuberosum_orthologs, Stuberosum_gff, by = "Ortholog Gene Name")
+
+Stuberosum_genome <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Stuberosum.fa.gz") %>% 
+  filter(seq.name %in% Stuberosum_orthologs$scaffold)
+
+for(i in 1:nrow(Stuberosum_orthologs)){
+  subset <- Stuberosum_orthologs[i, ]
+  scaffold <- filter(Stuberosum_genome, seq.name == subset$scaffold)
+  scaffold$seq.text <- str_sub(scaffold$seq.text, subset$start, subset$end)
+  if (subset$strand == "-"){
+    scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
+  }
+  dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Stuberosum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
+}
+```
+
+
+
 
