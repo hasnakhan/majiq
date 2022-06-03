@@ -76,7 +76,8 @@ Arabidopsis halleri cDNA
 ```{r}
 Ahalleri_transcriptome <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Ahalleri.transcript.fa.gz"))
 #pull out gene names only
-Ahalleri_transcriptome$seq.name <- str_sub(Ahalleri_transcriptome$seq.name, 1, 15)
+Ahalleri_transcriptome$seq.name <- gsub(".[0-9] pacid.*", "", Ahalleri_transcriptome$seq.name)
+#Ahalleri_transcriptome$seq.name <- str_sub(Ahalleri_transcriptome$seq.name, 1, 15)
 
 for(i in 1:nrow(Ahalleri_orthologs)){
   subset <- Ahalleri_orthologs[i, ]
