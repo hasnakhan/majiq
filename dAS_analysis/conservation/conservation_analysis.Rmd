@@ -10,7 +10,7 @@ library(tidyverse)
 ```
 
 ```{r}
-files = list.files(pattern="*_orthologs.tsv")
+files = list.files(path = "ortholog_lists/", pattern="*_orthologs.tsv")
 all_orthologs <- do.call(rbind, lapply(files, read_delim, delim = "\t")) %>% 
   select(-c(1, 6))
 dAS_genes <- unique(all_orthologs$`Gene Name`)
