@@ -9,8 +9,10 @@ library(Biostrings)
 library(tidyverse)
 ```
 
+
 ```{r}
-files = list.files(path = "ortholog_lists/", pattern="*_orthologs.tsv")
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/ortholog_lists/")
+files = list.files(pattern="*_orthologs.tsv")
 all_orthologs <- do.call(rbind, lapply(files, read_delim, delim = "\t")) %>% 
   select(-c(1, 6))
 dAS_genes <- unique(all_orthologs$`Gene Name`)
@@ -178,6 +180,7 @@ for(i in 1:nrow(Alyrata_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Alyrata/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -202,6 +205,7 @@ for(i in 1:nrow(Ahalleri_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+    scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Ahalleri/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -226,6 +230,7 @@ for(i in 1:nrow(Brapa_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Brapa/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -250,6 +255,7 @@ for(i in 1:nrow(Crubella_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Crubella/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -274,6 +280,7 @@ for(i in 1:nrow(Gmax_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")  
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Gmax/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -309,6 +316,7 @@ for(i in 1:nrow(Slycopersicum_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")  
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Slycopersicum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
@@ -333,10 +341,34 @@ for(i in 1:nrow(Stuberosum_orthologs)){
   if (subset$strand == "-"){
     scaffold$seq.text <- as.character(reverseComplement(DNAString(scaffold$seq.text)))
   }
+  scaffold$seq.name <- paste(subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA", sep = "")  
   dat2fasta(scaffold, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_sequences/Stuberosum/",subset$`Gene Name`, "_", subset$`Ortholog Gene Name`, "_gDNA.fasta", sep = ""))
 }
 ```
 
+since 2 dAS genes have only 1 intron, we can't select constitutive introns from these genes, so 2 additional IR events need to be selected from the vast DB. randomly select number between 273329 and 388522 (IR events in vast DB), check to make sure it has sufficient read depth across K20d and K20w. 
+```{r}
+set.seed(44)
+sample(273329:388522, 1)
+#291867: PUB33(AT2G45910)	AthINT0096724	(IR4) chr2:18895250-18895386
+
+set.seed(49)
+sample(273329:388522, 1)
+#305301: AT2G41190 AthINT0020254 (IR7)	chr2:17168244-17168343
+```
+
+after downloading ortholog lists for the new genes, re-run the code above to get cDNA and gDNA fasta files (this will re-write the files for the genes we had before, but it doesn't matter)
 
 
+
+```{r}
+#create a single fasta file for each species containing the gDNA sequences for the 25 genes of interest (more or less depending on if orthologs are missing, or if genes are duplicates). Will do A thaliana separately (likely manually) as those sequences are arranged differently
+species <- c("Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
+for (plant in species){
+  gDNA = list.files(path = paste("species_sequences/", plant, "/", sep = ""), pattern="*_gDNA.fasta", full.names = T)
+  gDNA <- do.call(rbind, lapply(gDNA, read.fasta))
+  gDNA$seq.name <- paste(plant, ":", gDNA$seq.name, ":1:+:", nchar(gDNA$seq.text), sep = "")
+  dat2fasta(gDNA, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/TBA/gDNA/", plant, ".fasta", sep = ""))
+}
+```
 
