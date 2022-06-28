@@ -360,7 +360,7 @@ sample(273329:388522, 1)
 after downloading ortholog lists for the new genes, re-run the code above to get cDNA and gDNA fasta files (this will re-write the files for the genes we had before, but it doesn't matter)
 
 
-
+didn't end up using this, phyloFit model built using a single gDNA sequence and will be adjusted to each gene within phastCons.
 ```{r}
 #create a single fasta file for each species containing the gDNA sequences for the 25 genes of interest (more or less depending on if orthologs are missing, or if genes are duplicates). Will do A thaliana separately (likely manually) as those sequences are arranged differently
 species <- c("Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
@@ -369,6 +369,117 @@ for (plant in species){
   gDNA <- do.call(rbind, lapply(gDNA, read.fasta))
   gDNA$seq.name <- paste(plant, ":", gDNA$seq.name, ":1:+:", nchar(gDNA$seq.text), sep = "")
   dat2fasta(gDNA, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/TBA/gDNA/", plant, ".fasta", sep = ""))
+}
+```
+
+for all the flanking exon and alt intron sequences we pulled, need to get sequences of the same length. From A thaliana, the shortest exon is 48nt and the shortest intron in 76nt. based on these values, a sequence length of 40nt makes sense, as this is nearly as long as the shortest exon, and will almost split in half the shortest intron. We'll have 4 types of sequencse to analyze: 
+1. 40 nt directly upstream of intron (last 40nt of upstream exon)
+2. 40 nt directly downstream of intron (first 40 nt of downstream intron)
+3. 40 nt at 5' end of intron (first 40 nt of intron)
+4. 40 nt at 3' end of intron (last 40 nt of intron)
+Need to make a fasta file for each of these 4 sequence types and for each gene. Thinking of a subdirectory for each sequence type containing all the single gene files (which will make later analysis easier)
+```{r}
+species <- c("Athaliana", "Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
+
+#upstream exons
+upstream_exons <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_upstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  upstream_exons <- rbind(upstream_exons, seq)
+}
+
+for (gene in dAS_genes){
+  out <- upstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/alternative/upstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#downstream_exons
+downstream_exons <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_downstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  downstream_exons <- rbind(downstream_exons, seq)
+}
+
+for (gene in dAS_genes){
+  out <- downstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/alternative/downstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#5' end of intron
+intron5 <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  intron5 <- rbind(intron5, seq)
+}
+
+for (gene in dAS_genes){
+  out <- intron5 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/alternative/intron5/", gene, ".fasta", sep = ""))
+}
+
+#3' end of intron
+intron3 <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  intron3 <- rbind(intron3, seq)
+}
+
+for (gene in dAS_genes){
+  out <- intron3 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  #out <- out %>% mutate (seq.name = replace_na("Athaliana"))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/alternative/intron3/", gene, ".fasta", sep = ""))
 }
 ```
 
