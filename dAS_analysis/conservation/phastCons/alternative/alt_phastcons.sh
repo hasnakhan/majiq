@@ -5,7 +5,6 @@ do
 	for sequence in /mnt/c/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/alternative/"${folder##*/}"/*.fasta; 
 	do
 	name=$(basename "$sequence")
-	type=$(basename "$folder")
 	#echo "$folder"
 	#echo "$sequence"
 	phastCons --estimate-trees $folder/trees/$name $sequence phyloFit.mod > $folder/"${name##*/}.wig"
