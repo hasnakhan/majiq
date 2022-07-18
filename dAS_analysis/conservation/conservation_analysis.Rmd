@@ -6,6 +6,8 @@ output: html_document
 ```{r}
 library(phylotools)
 library(Biostrings)
+library(matrixStats)
+library(zoo)
 library(tidyverse)
 ```
 
@@ -380,6 +382,7 @@ for all the flanking exon and alt intron sequences we pulled, need to get sequen
 Need to make a fasta file for each of these 4 sequence types and for each gene. Thinking of a subdirectory for each sequence type containing all the single gene files (which will make later analysis easier)
 ```{r}
 species <- c("Athaliana", "Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
+alt_genes <- dAS_genes[! dAS_genes %in% c("AT2G41190", "AT2G45910")]
 
 #upstream exons
 upstream_exons <- data.frame()
@@ -391,7 +394,7 @@ for (plant in species){
   upstream_exons <- rbind(upstream_exons, seq)
 }
 
-for (gene in dAS_genes){
+for (gene in alt_genes){
   out <- upstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
   out <- out %>% mutate(seq.name = case_when(
     str_detect(seq.name, "Araha") ~ "Ahalleri",
@@ -416,7 +419,7 @@ for (plant in species){
   downstream_exons <- rbind(downstream_exons, seq)
 }
 
-for (gene in dAS_genes){
+for (gene in alt_genes){
   out <- downstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
   out <- out %>% mutate(seq.name = case_when(
     str_detect(seq.name, "Araha") ~ "Ahalleri",
@@ -441,7 +444,7 @@ for (plant in species){
   intron5 <- rbind(intron5, seq)
 }
 
-for (gene in dAS_genes){
+for (gene in alt_genes){
   out <- intron5 %>% filter(str_detect(seq.name, as.character(gene)))
   out <- out %>% mutate(seq.name = case_when(
     str_detect(seq.name, "Araha") ~ "Ahalleri",
@@ -466,7 +469,7 @@ for (plant in species){
   intron3 <- rbind(intron3, seq)
 }
 
-for (gene in dAS_genes){
+for (gene in alt_genes){
   out <- intron3 %>% filter(str_detect(seq.name, as.character(gene)))
   out <- out %>% mutate(seq.name = case_when(
     str_detect(seq.name, "Araha") ~ "Ahalleri",
@@ -483,3 +486,764 @@ for (gene in dAS_genes){
 }
 ```
 
+read back in the phastcons scores for each sequence type and plot as a function of position
+upstream exons
+```{r}
+upexon_scores = list.files(path = "phastCons/alternative/upstream_exon/", pattern = "fasta.wig", full.names = T)
+upexon_scores <- do.call(cbind, lapply(upexon_scores, read_delim, delim = "\n"))
+colnames(upexon_scores) <- alt_genes
+upexon_scores <- upexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores$med <- rowMedians(as.matrix(upexon_scores[, c(1:23)]))
+median <- upexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores <- cbind(upexon_scores, median)
+#this is ugly, but it'll do :)
+
+upexon_scores$position <- c(1:40)
+ggplot(upexon_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+downstream exons
+```{r}
+downexon_scores = list.files(path = "phastCons/alternative/downstream_exon/", pattern = ".wig", full.names = T)
+downexon_scores <- do.call(cbind, lapply(downexon_scores, read_delim, delim = "\n"))
+colnames(downexon_scores) <- alt_genes
+downexon_scores <- downexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores$med <- rowMedians(as.matrix(downexon_scores[, c(1:23)]))
+median <- downexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores <- cbind(downexon_scores, median)
+#this is ugly, but it'll do :)
+
+downexon_scores$position <- c(1:40)
+ggplot(downexon_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+intron 5'
+```{r}
+intron5_scores = list.files(path = "phastCons/alternative/intron5/", pattern = ".wig", full.names = T)
+intron5_scores <- do.call(cbind, lapply(intron5_scores, read_delim, delim = "\n"))
+colnames(intron5_scores) <- alt_genes
+intron5_scores <- intron5_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_scores$med <- rowMedians(as.matrix(intron5_scores[, c(1:23)]))
+median <- intron5_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron5_scores <- cbind(intron5_scores, median)
+#this is ugly, but it'll do :)
+
+intron5_scores$position <- c(1:40)
+ggplot(intron5_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+intron 3'
+```{r}
+intron3_scores = list.files(path = "phastCons/alternative/intron3/", pattern = ".wig", full.names = T)
+intron3_scores <- do.call(cbind, lapply(intron3_scores, read_delim, delim = "\n"))
+colnames(intron3_scores) <- alt_genes
+intron3_scores <- intron3_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_scores$med <- rowMedians(as.matrix(intron3_scores[, c(1:23)]))
+median <- intron3_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron3_scores <- cbind(intron3_scores, median)
+#this is ugly, but it'll do :)
+
+intron3_scores$position <- c(1:40)
+ggplot(intron3_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+don't like how these look, think it's an issue of the neutral models. let's instead build a neutral model for each gene using all its gDNA sequences. write out all gDNA from the same gene to a fasta file, then feed it into mafft. in cases where a single species has multiple ortholgs, select one at random (do this after, manually. see selected genes in conservation.xlsx).
+```{r}
+species <- c("Athaliana", "Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
+gDNA <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("species_sequences/", plant, "/", sep = ""), pattern = "_gDNA.fasta", full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  gDNA <- rbind(gDNA, seq)
+}
+
+for (gene in dAS_genes){
+  out <- gDNA %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/models/", gene, "_unaligned.fasta", sep = ""))
+}
+```
+
+read in the phyloP scores and plot
+upstream_exon
+```{r}
+upexon_scores = list.files(path = "phastCons/alternative/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+upexon_scores <- do.call(cbind, lapply(upexon_scores, read_delim, delim = "\n"))
+colnames(upexon_scores) <- alt_genes
+upexon_scores <- upexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores$med <- rowMedians(as.matrix(upexon_scores[, c(1:23)]))
+median <- upexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores <- cbind(upexon_scores, median)
+#this is ugly, but it'll do :)
+
+upexon_scores$position <- c(1:40)
+ggplot(upexon_scores, aes(x = position, y = median))+
+  geom_line()
+
+#try means instead?
+mean <- upexon_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+upexon_scores <- cbind(upexon_scores, mean)
+
+upexon_scores$position <- c(1:40)
+ggplot(upexon_scores, aes(x = position, y = mean))+
+  geom_line()
+```
+
+downstream exons
+```{r}
+downexon_scores = list.files(path = "phastCons/alternative/downstream_exon/", pattern = "_phylop.wig", full.names = T)
+downexon_scores <- do.call(cbind, lapply(downexon_scores, read_delim, delim = "\n"))
+colnames(downexon_scores) <- alt_genes
+downexon_scores <- downexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores$med <- rowMedians(as.matrix(downexon_scores[, c(1:23)]))
+median <- downexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores <- cbind(downexon_scores, median)
+#this is ugly, but it'll do :)
+
+downexon_scores$position <- c(1:40)
+ggplot(downexon_scores, aes(x = position, y = median))+
+  geom_line()
+
+#try means instead?
+mean <- downexon_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+downexon_scores <- cbind(downexon_scores, mean)
+```
+
+intron 5'
+```{r}
+intron5_scores = list.files(path = "phastCons/alternative/intron5/", pattern = "_phylop.wig", full.names = T)
+intron5_scores <- do.call(cbind, lapply(intron5_scores, read_delim, delim = "\n"))
+colnames(intron5_scores) <- alt_genes
+intron5_scores <- intron5_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_scores$med <- rowMedians(as.matrix(intron5_scores[, c(1:23)]))
+median <- intron5_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron5_scores <- cbind(intron5_scores, median)
+#this is ugly, but it'll do :)
+
+intron5_scores$position <- c(1:40)
+ggplot(intron5_scores, aes(x = position, y = median))+
+  geom_line()
+
+#try means instead?
+mean <- intron5_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron5_scores <- cbind(intron5_scores, mean)
+```
+
+intron 3'
+```{r}
+intron3_scores = list.files(path = "phastCons/alternative/intron3/", pattern = "_phylop.wig", full.names = T)
+intron3_scores <- do.call(cbind, lapply(intron3_scores, read_delim, delim = "\n"))
+colnames(intron3_scores) <- alt_genes
+intron3_scores <- intron3_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_scores$med <- rowMedians(as.matrix(intron3_scores[, c(1:23)]))
+median <- intron3_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron3_scores <- cbind(intron3_scores, median)
+#this is ugly, but it'll do :)
+
+intron3_scores$position <- c(1:40)
+ggplot(intron3_scores, aes(x = position, y = median))+
+  geom_line()+
+  geom_hline(yintercept = 0)
+
+#try means instead?
+mean <- intron3_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron3_scores <- cbind(intron3_scores, mean)
+```
+
+these look great for the introns, not so much the exons. gonna try re-running phastcons using the gene-specific gDNA neutral models.
+
+read in the phastCons scores and plot
+upstream_exon
+```{r}
+upexon_scores = list.files(path = "phastCons/alternative/upstream_exon/", pattern = "_phastcons.wig", full.names = T)
+upexon_scores <- do.call(cbind, lapply(upexon_scores, read_delim, delim = "\n"))
+colnames(upexon_scores) <- alt_genes
+upexon_scores <- upexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores$med <- rowMedians(as.matrix(upexon_scores[, c(1:23)]))
+median <- upexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores <- cbind(upexon_scores, median)
+#this is ugly, but it'll do :)
+
+upexon_scores$position <- c(1:40)
+ggplot(upexon_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+downstream exons
+```{r}
+downexon_scores = list.files(path = "phastCons/alternative/downstream_exon/", pattern = "_phastcons.wig", full.names = T)
+downexon_scores <- do.call(cbind, lapply(downexon_scores, read_delim, delim = "\n"))
+colnames(downexon_scores) <- alt_genes
+downexon_scores <- downexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores$med <- rowMedians(as.matrix(downexon_scores[, c(1:23)]))
+median <- downexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores <- cbind(downexon_scores, median)
+#this is ugly, but it'll do :)
+
+downexon_scores$position <- c(1:40)
+ggplot(downexon_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+intron 5'
+```{r}
+intron5_scores = list.files(path = "phastCons/alternative/intron5/", pattern = "_phastcons.wig", full.names = T)
+intron5_scores <- do.call(cbind, lapply(intron5_scores, read_delim, delim = "\n"))
+colnames(intron5_scores) <- alt_genes
+intron5_scores <- intron5_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_scores$med <- rowMedians(as.matrix(intron5_scores[, c(1:23)]))
+median <- intron5_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron5_scores <- cbind(intron5_scores, median)
+#this is ugly, but it'll do :)
+
+intron5_scores$position <- c(1:40)
+ggplot(intron5_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+intron 3'
+```{r}
+intron3_scores = list.files(path = "phastCons/alternative/intron3/", pattern = "_phastcons.wig", full.names = T)
+intron3_scores <- do.call(cbind, lapply(intron3_scores, read_delim, delim = "\n"))
+colnames(intron3_scores) <- alt_genes
+intron3_scores <- intron3_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_scores$med <- rowMedians(as.matrix(intron3_scores[, c(1:23)]))
+median <- intron3_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron3_scores <- cbind(intron3_scores, median)
+#this is ugly, but it'll do :)
+
+intron3_scores$position <- c(1:40)
+ggplot(intron3_scores, aes(x = position, y = median))+
+  geom_line()
+```
+
+moving on to constitutive introns: after mafft alignment, read in the sequences and write them out according to gene and type 
+```{r}
+species <- c("Athaliana", "Alyrata", "Ahalleri", "Brapa", "Crubella", "Gmax", "Slycopersicum", "Stuberosum")
+cons_genes <- dAS_genes[! dAS_genes %in% c("AT1G24147", "AT1G53840")]
+cons_genes_struct <- cons_genes[! cons_genes %in% "AT2G47730"]
+
+#upstream exons
+upstream_exons <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_upstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  upstream_exons <- rbind(upstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- upstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/constitutive/upstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#downstream_exons
+downstream_exons <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_downstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  downstream_exons <- rbind(downstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- downstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/constitutive/downstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#5' end of intron
+intron5 <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  intron5 <- rbind(intron5, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron5 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/constitutive/intron5/", gene, ".fasta", sep = ""))
+}
+
+#3' end of intron
+intron3 <- data.frame()
+for (plant in species){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  intron3 <- rbind(intron3, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron3 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata",
+    str_detect(seq.name, "Brara") ~ "Brapa",
+    str_detect(seq.name, "Carub") ~ "Crubella",
+    str_detect(seq.name, "Glyma") ~ "Gmax",
+    str_detect(seq.name, "Soltu") ~ "Stuberosum",
+    str_detect(seq.name, "Solyc") ~ "Slycopersicum"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  #out <- out %>% mutate (seq.name = replace_na("Athaliana"))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/constitutive/intron3/", gene, ".fasta", sep = ""))
+}
+```
+
+read in the phyloP scores for constitutive introns and plot alongside alternatives
+upstream_exon
+```{r}
+upexon_scores_c = list.files(path = "phastCons/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+upexon_scores_c <- do.call(cbind, lapply(upexon_scores_c, read_delim, delim = "\n"))
+colnames(upexon_scores_c) <- cons_genes_struct
+upexon_scores_c <- upexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores_c$med <- rowMedians(as.matrix(upexon_scores_c[, c(1:23)]))
+median_c <- upexon_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores_c <- cbind(upexon_scores_c, median_c)
+#this is ugly, but it'll do :)
+
+#try means instead?
+mean <- upexon_scores_c$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+upexon_scores_c <- cbind(upexon_scores_c, mean)
+
+upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$median, upexon_scores_c$median_c, upexon_scores$mean, mean))
+colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line()
+```
+
+downstream exons
+```{r}
+downexon_scores_c = list.files(path = "phastCons/constitutive/downstream_exon/", pattern = "_phylop.wig", full.names = T)
+downexon_scores_c <- do.call(cbind, lapply(downexon_scores_c, read_delim, delim = "\n"))
+colnames(downexon_scores_c) <- cons_genes_struct
+downexon_scores_c <- downexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores_c$med <- rowMedians(as.matrix(downexon_scores_c[, c(1:23)]))
+median_c <- downexon_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores_c <- cbind(downexon_scores_c, median_c)
+#this is ugly, but it'll do :)
+
+#try means instead?
+mean <- downexon_scores_c$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+downexon_scores_c <- cbind(downexon_scores_c, mean)
+
+downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_scores$median, downexon_scores_c$median_c, downexon_scores$mean, mean))
+colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line()
+```
+
+intron 5'
+```{r}
+intron5_c = list.files(path = "phastCons/constitutive/intron5/", pattern = "_phylop.wig", full.names = T)
+intron5_c <- do.call(cbind, lapply(intron5_c, read_delim, delim = "\n"))
+colnames(intron5_c) <- cons_genes_struct
+intron5_c <- intron5_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_c$med <- rowMedians(as.matrix(intron5_c[, c(1:23)]))
+median_c <- intron5_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+intron5_c <- cbind(intron5_c, median_c)
+#this is ugly, but it'll do :)
+
+#try means instead?
+mean <- intron5_c$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron5_c <- cbind(intron5_c, mean)
+
+intron5_scores_plot <- as.data.frame(cbind(intron5_scores$position, intron5_scores$median, intron5_c$median_c, intron5_scores$mean, mean))
+colnames(intron5_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+intron5_scores_plot <-  intron5_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(intron5_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line()
+```
+
+intron 3'
+```{r}
+intron3_c = list.files(path = "phastCons/constitutive/intron3/", pattern = "_phylop.wig", full.names = T)
+intron3_c <- do.call(cbind, lapply(intron3_c, read_delim, delim = "\n"))
+colnames(intron3_c) <- cons_genes_struct
+intron3_c <- intron3_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_c$med <- rowMedians(as.matrix(intron3_c[, c(1:23)]))
+median_c <- intron3_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+intron3_c <- cbind(intron3_c, median_c)
+#this is ugly, but it'll do :)
+
+#try means instead?
+mean <- intron3_c$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron3_c <- cbind(intron3_c, mean)
+
+intron3_scores_plot <- as.data.frame(cbind(intron3_scores$position, intron3_scores$median, intron3_c$median_c, intron3_scores$mean, mean))
+colnames(intron3_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+intron3_scores_plot <-  intron3_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(intron3_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line()
+```
+
+what if we only look within Arabidopsis species? set up the phyloP input fasta files using only Arabidopsis sequences
+```{r}
+arabidopsis <- c("Athaliana", "Alyrata", "Ahalleri")
+cons_genes <- dAS_genes[! dAS_genes %in% c("AT1G24147", "AT1G53840")]
+cons_genes_struct <- cons_genes[! cons_genes %in% "AT2G47730"]
+
+#alternative
+#upstream exons
+upstream_exons <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_upstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  upstream_exons <- rbind(upstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- upstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/alternative/upstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#downstream_exons
+downstream_exons <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_downstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  downstream_exons <- rbind(downstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- downstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/alternative/downstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#5' end of intron
+intron5 <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  intron5 <- rbind(intron5, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron5 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/alternative/intron5/", gene, ".fasta", sep = ""))
+}
+
+#3' end of intron
+intron3 <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/alternative/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  intron3 <- rbind(intron3, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron3 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  #out <- out %>% mutate (seq.name = replace_na("Athaliana"))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/alternative/intron3/", gene, ".fasta", sep = ""))
+}
+
+#constitutive
+#upstream exons
+upstream_exons <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_upstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  upstream_exons <- rbind(upstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- upstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/constitutive/upstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#downstream_exons
+downstream_exons <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*_downstream_exon", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  downstream_exons <- rbind(downstream_exons, seq)
+}
+
+for (gene in cons_genes){
+  out <- downstream_exons %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/constitutive/downstream_exon/", gene, ".fasta", sep = ""))
+}
+
+#5' end of intron
+intron5 <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, end = 40)
+  intron5 <- rbind(intron5, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron5 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/constitutive/intron5/", gene, ".fasta", sep = ""))
+}
+
+#3' end of intron
+intron3 <- data.frame()
+for (plant in arabidopsis){
+  seq = list.files(path = paste("conserved_sequences/constitutive/", plant, "/", sep = ""), full.names = T)
+  seq <- do.call(rbind, lapply(seq, read.fasta))
+  seq <- filter(seq, grepl("*intron", seq.name))
+  seq$seq.text <- str_sub(seq$seq.text, start = -40)
+  intron3 <- rbind(intron3, seq)
+}
+
+for (gene in cons_genes){
+  out <- intron3 %>% filter(str_detect(seq.name, as.character(gene)))
+  out <- out %>% mutate(seq.name = case_when(
+    str_detect(seq.name, "Araha") ~ "Ahalleri",
+    str_detect(seq.name, "AL") ~ "Alyrata"
+  )) %>% 
+    mutate(seq.name = ifelse(is.na(seq.name), "Athaliana", seq.name))
+  #out <- out %>% mutate (seq.name = replace_na("Athaliana"))
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/Arabidopsis/constitutive/intron3/", gene, ".fasta", sep = ""))
+}
+```
+
+upstream exons
+```{r}
+alt_genes_ara <- alt_genes[! alt_genes %in% c("AT1G24147", "AT1G53840")]
+cons_genes_ara <- cons_genes_struct[! cons_genes_struct %in% "AT5G15960"]
+upexon_scores = list.files(path = "phastCons/Arabidopsis/alternative/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+upexon_scores <- do.call(cbind, lapply(upexon_scores, read_delim, delim = "\n"))
+colnames(upexon_scores) <- alt_genes_ara
+upexon_scores <- upexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores$med <- rowMedians(as.matrix(upexon_scores[, c(1:21)]))
+median <- upexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores <- cbind(upexon_scores, median)
+upexon_scores$position <- c(1:40)
+
+upexon_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+upexon_scores_c <- do.call(cbind, lapply(upexon_scores_c, read_delim, delim = "\n"))
+colnames(upexon_scores_c) <- cons_genes_ara
+upexon_scores_c <- upexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+upexon_scores_c$med <- rowMedians(as.matrix(upexon_scores_c[, c(1:22)]))
+median_c <- upexon_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+upexon_scores_c <- cbind(upexon_scores_c, median_c)
+
+upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$median, upexon_scores_c$median_c))
+colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med")
+upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
+ggplot(upexon_scores_plot, aes(x = position, y = median, colour = Type_median))+
+  geom_line()+
+  lims(y = c(0, 0.1))
+
+```
+
+downstream exons
+```{r}
+downexon_scores = list.files(path = "phastCons/Arabidopsis/alternative/downstream_exon/", pattern = "_phylop.wig", full.names = T)
+downexon_scores <- do.call(cbind, lapply(downexon_scores, read_delim, delim = "\n"))
+colnames(downexon_scores) <- alt_genes_ara
+downexon_scores <- downexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores$med <- rowMedians(as.matrix(downexon_scores[, c(1:21)]))
+median <- downexon_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores <- cbind(downexon_scores, median)
+downexon_scores$position <- c(1:40)
+
+downexon_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+downexon_scores_c <- do.call(cbind, lapply(downexon_scores_c, read_delim, delim = "\n"))
+colnames(downexon_scores_c) <- cons_genes_ara
+downexon_scores_c <- downexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+downexon_scores_c$med <- rowMedians(as.matrix(downexon_scores_c[, c(1:22)]))
+median_c <- downexon_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+downexon_scores_c <- cbind(downexon_scores_c, median_c)
+
+downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_scores$median, downexon_scores_c$median_c))
+colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med")
+downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
+ggplot(downexon_scores_plot, aes(x = position, y = median, colour = Type_median))+
+  geom_line()+
+  lims(y = c(0, 0.1))
+```
+
+intron5
+```{r}
+intron5_scores = list.files(path = "phastCons/Arabidopsis/alternative/intron5/", pattern = "_phylop.wig", full.names = T)
+intron5_scores <- do.call(cbind, lapply(intron5_scores, read_delim, delim = "\n"))
+colnames(intron5_scores) <- alt_genes_ara
+intron5_scores <- intron5_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_scores$med <- rowMedians(as.matrix(intron5_scores[, c(1:21)]))
+median <- intron5_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron5_scores <- cbind(intron5_scores, median)
+intron5_scores$position <- c(1:40)
+
+intron5_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+intron5_scores_c <- do.call(cbind, lapply(intron5_scores_c, read_delim, delim = "\n"))
+colnames(intron5_scores_c) <- cons_genes_ara
+intron5_scores_c <- intron5_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron5_scores_c$med <- rowMedians(as.matrix(intron5_scores_c[, c(1:22)]))
+median_c <- intron5_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+intron5_scores_c <- cbind(intron5_scores_c, median_c)
+
+intron5_scores_plot <- as.data.frame(cbind(intron5_scores$position, intron5_scores$median, intron5_scores_c$median_c))
+colnames(intron5_scores_plot) <- c("position", "alt_med", "cons_med")
+intron5_scores_plot <-  intron5_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
+ggplot(intron5_scores_plot, aes(x = position, y = median, colour = Type_median))+
+  geom_line()+
+  lims(y = c(0, 0.1))
+```
+
+intron 3
+```{r}
+intron3_scores = list.files(path = "phastCons/Arabidopsis/alternative/intron3/", pattern = "_phylop.wig", full.names = T)
+intron3_scores <- do.call(cbind, lapply(intron3_scores, read_delim, delim = "\n"))
+colnames(intron3_scores) <- alt_genes_ara
+intron3_scores <- intron3_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_scores$med <- rowMedians(as.matrix(intron3_scores[, c(1:21)]))
+median <- intron3_scores$med
+median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
+intron3_scores <- cbind(intron3_scores, median)
+intron3_scores$position <- c(1:40)
+
+intron3_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+intron3_scores_c <- do.call(cbind, lapply(intron3_scores_c, read_delim, delim = "\n"))
+colnames(intron3_scores_c) <- cons_genes_ara
+intron3_scores_c <- intron3_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
+intron3_scores_c$med <- rowMedians(as.matrix(intron3_scores_c[, c(1:22)]))
+median_c <- intron3_scores_c$med
+median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
+intron3_scores_c <- cbind(intron3_scores_c, median_c)
+
+intron3_scores_plot <- as.data.frame(cbind(intron3_scores$position, intron3_scores$median, intron3_scores_c$median_c))
+colnames(intron3_scores_plot) <- c("position", "alt_med", "cons_med")
+intron3_scores_plot <-  intron3_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
+ggplot(intron3_scores_plot, aes(x = position, y = median, colour = Type_median))+
+  geom_line()+
+  lims(y = c(0, 0.1))
+```
+
+
+don't really think this is interesting, alt and cons look virtually identical in the exons, in the introns the cons ones are more conserved, which is weird?
