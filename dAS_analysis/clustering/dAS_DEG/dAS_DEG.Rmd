@@ -6,7 +6,7 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(readxl)
-library(ggVennDiagram)
+library(VennDiagram)
 ```
 
 
@@ -281,7 +281,9 @@ first, read in and set up the data we need
 ```{r}
 #get the dAS genes
 #since Anna didn't compare droughted leaves to droughted GCs, we'll omit those comps as well
-dASG <- all_events %>% filter(set == "dAS", !(comp %in% c("K20dL20d", "K40dL40d", "K60dL60d"))) %>% 
+#can also toggle omitting watered comps as well, for when all we're ineresting in is drought (as in trend talk)
+#watered comps are currently off, to turn back on, remove from this ommission filter and uncomment out the KwLw bit at the bottom of this chunk
+dASG <- all_events %>% filter(set == "dAS", !(comp %in% c("K20dL20d", "K40dL40d", "K60dL60d", "K20wL20w", "K40wL40w", "K60wL60w"))) %>% 
   select(GeneID, comp) %>% 
   unite(gene_comp, GeneID:comp, remove = T, sep = "_") %>% 
   mutate(gene_comp = str_replace_all(gene_comp, c("K20wL20w|K40wL40w|K60wL60w"), "KwLw"))
@@ -334,16 +336,20 @@ colnames(deg_l60dl60w) <- c("geneid", "comp")
 deg_l60dl60w$genecomp <- paste(deg_l60dl60w$geneid, deg_l60dl60w$comp, sep = "_")
 
 #KwLw
-deg_kl <- read_excel("Anna_DEGs.xlsx", sheet = "kl")
-deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
-deg_kwlw <- na.omit(deg_kwlw)
-deg_kwlw$comp <- c("KwLw")
-colnames(deg_kwlw) <- c("geneid", "comp")
-deg_kwlw$genecomp <- paste(deg_kwlw$geneid, deg_kwlw$comp, sep = "_")
+#deg_kl <- read_excel("Anna_DEGs.xlsx", sheet = "kl")
+#deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
+#deg_kwlw <- na.omit(deg_kwlw)
+#deg_kwlw$comp <- c("KwLw")
+#colnames(deg_kwlw) <- c("geneid", "comp")
+#deg_kwlw$genecomp <- paste(deg_kwlw$geneid, deg_kwlw$comp, sep = "_")
 
 dAS_genes <- unique(dASG$gene_comp)
-DE_genes <- unique(c(deg_k20dk20w$genecomp, deg_k40dk40w$genecomp, deg_k60dk60w$genecomp, deg_l20dl20w$genecomp, deg_l40dl40w$genecomp, deg_l60dl60w$genecomp, deg_kwlw$genecomp))
+DE_genes <- unique(c(deg_k20dk20w$genecomp, deg_k40dk40w$genecomp, deg_k60dk60w$genecomp, deg_l20dl20w$genecomp, deg_l40dl40w$genecomp, deg_l60dl60w$genecomp))
 vd <- list(dAS_genes, DE_genes)
+```
+
+```{r}
+venn.diagram(x = vd, filename = "test.png", category = c("dAS genes", "DE genes"), col = c("limegreen", "turquoise"), fill = c("limegreen", "turquoise"), fontfamily = "sans", cat.fontfamily = "sans", ext.text = F, cat.pos = 180, cat.cex = c(1.5, 1.5))
 ```
 
 ```{r}
