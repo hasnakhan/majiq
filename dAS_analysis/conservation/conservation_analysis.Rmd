@@ -17,6 +17,8 @@ setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/orth
 files = list.files(pattern="*_orthologs.tsv")
 all_orthologs <- do.call(rbind, lapply(files, read_delim, delim = "\t")) %>% 
   select(-c(1, 6))
+
+#dAS_genes includes the 2 non-dAS control genes as well
 dAS_genes <- unique(all_orthologs$`Gene Name`)
 ```
 
@@ -594,7 +596,7 @@ median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
 upexon_scores <- cbind(upexon_scores, median)
 #this is ugly, but it'll do :)
 
-upexon_scores$position <- c(1:40)
+upexon_scores$position <- c(-40:-1)
 ggplot(upexon_scores, aes(x = position, y = median))+
   geom_line()
 
@@ -603,7 +605,7 @@ mean <- upexon_scores$ave
 mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
 upexon_scores <- cbind(upexon_scores, mean)
 
-upexon_scores$position <- c(1:40)
+upexon_scores$position <- c(-40:-1)
 ggplot(upexon_scores, aes(x = position, y = mean))+
   geom_line()
 ```
@@ -664,7 +666,7 @@ median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
 intron3_scores <- cbind(intron3_scores, median)
 #this is ugly, but it'll do :)
 
-intron3_scores$position <- c(1:40)
+intron3_scores$position <- c(-40:-1)
 ggplot(intron3_scores, aes(x = position, y = median))+
   geom_line()+
   geom_hline(yintercept = 0)
@@ -877,7 +879,11 @@ colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean",
 upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()
+  geom_line()+
+  labs(title = "Upstream exons - all species",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 5' SS")+
+  theme(legend.title = element_blank())
 ```
 
 downstream exons
@@ -902,7 +908,11 @@ colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean
 downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()
+  geom_line()+
+  labs(title = "Downstream exons - all species",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 3' SS")+
+  theme(legend.title = element_blank())
 ```
 
 intron 5'
@@ -927,7 +937,11 @@ colnames(intron5_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean"
 intron5_scores_plot <-  intron5_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(intron5_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()
+  geom_line()+
+  labs(title = "Intron 5' end - all species",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 5' SS")+
+  theme(legend.title = element_blank())
 ```
 
 intron 3'
@@ -952,7 +966,11 @@ colnames(intron3_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean"
 intron3_scores_plot <-  intron3_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(intron3_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()
+  geom_line()+
+  labs(title = "Intron 3' end - all species",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 3' SS")+
+  theme(legend.title = element_blank())
 ```
 
 what if we only look within Arabidopsis species? set up the phyloP input fasta files using only Arabidopsis sequences
@@ -1137,8 +1155,10 @@ upexon_scores <- upexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060:AT5
 upexon_scores$med <- rowMedians(as.matrix(upexon_scores[, c(1:21)]))
 median <- upexon_scores$med
 median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
-upexon_scores <- cbind(upexon_scores, median)
-upexon_scores$position <- c(1:40)
+mean <- upexon_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+upexon_scores <- cbind(upexon_scores, median, mean)
+upexon_scores$position <- c(-40:-1)
 
 upexon_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
 upexon_scores_c <- do.call(cbind, lapply(upexon_scores_c, read_delim, delim = "\n"))
@@ -1147,14 +1167,21 @@ upexon_scores_c <- upexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060
 upexon_scores_c$med <- rowMedians(as.matrix(upexon_scores_c[, c(1:22)]))
 median_c <- upexon_scores_c$med
 median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
-upexon_scores_c <- cbind(upexon_scores_c, median_c)
+mean_c <- upexon_scores_c$ave
+mean_c <- rollapply(mean_c, width = 3, by = 1, FUN = mean, partial = T)
+upexon_scores_c <- cbind(upexon_scores_c, median_c, mean_c)
 
-upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$median, upexon_scores_c$median_c))
-colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med")
-upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
-ggplot(upexon_scores_plot, aes(x = position, y = median, colour = Type_median))+
+upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$median, upexon_scores_c$median_c, upexon_scores$mean, upexon_scores_c$mean_c))
+colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  lims(y = c(0, 0.1))
+  lims(y = c(0.035, 0.05))+
+  labs(title = "Upstream exons - Arabidopsis only",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 5' SS")+
+  theme(legend.title = element_blank())
 
 ```
 
@@ -1167,24 +1194,33 @@ downexon_scores <- downexon_scores %>% mutate(ave = rowMeans(select(., AT1G09060
 downexon_scores$med <- rowMedians(as.matrix(downexon_scores[, c(1:21)]))
 median <- downexon_scores$med
 median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
-downexon_scores <- cbind(downexon_scores, median)
+mean <- downexon_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+downexon_scores <- cbind(downexon_scores, median, mean)
 downexon_scores$position <- c(1:40)
 
-downexon_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+downexon_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/downstream_exon/", pattern = "_phylop.wig", full.names = T)
 downexon_scores_c <- do.call(cbind, lapply(downexon_scores_c, read_delim, delim = "\n"))
 colnames(downexon_scores_c) <- cons_genes_ara
 downexon_scores_c <- downexon_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
 downexon_scores_c$med <- rowMedians(as.matrix(downexon_scores_c[, c(1:22)]))
 median_c <- downexon_scores_c$med
 median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
-downexon_scores_c <- cbind(downexon_scores_c, median_c)
+mean_c <- downexon_scores_c$ave
+mean_c <- rollapply(mean_c, width = 3, by = 1, FUN = mean, partial = T)
+downexon_scores_c <- cbind(downexon_scores_c, median_c, mean_c)
 
-downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_scores$median, downexon_scores_c$median_c))
-colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med")
-downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
-ggplot(downexon_scores_plot, aes(x = position, y = median, colour = Type_median))+
+downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_scores$median, downexon_scores_c$median_c, downexon_scores$mean, downexon_scores_c$mean_c))
+colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  lims(y = c(0, 0.1))
+  lims(y = c(0.035, 0.05))+
+  labs(title = "Downstream exons - Arabidopsis only",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 3' SS")+
+  theme(legend.title = element_blank())
 ```
 
 intron5
@@ -1196,24 +1232,33 @@ intron5_scores <- intron5_scores %>% mutate(ave = rowMeans(select(., AT1G09060:A
 intron5_scores$med <- rowMedians(as.matrix(intron5_scores[, c(1:21)]))
 median <- intron5_scores$med
 median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
-intron5_scores <- cbind(intron5_scores, median)
+mean <- intron5_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron5_scores <- cbind(intron5_scores, median, mean)
 intron5_scores$position <- c(1:40)
 
-intron5_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+intron5_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/intron5/", pattern = "_phylop.wig", full.names = T)
 intron5_scores_c <- do.call(cbind, lapply(intron5_scores_c, read_delim, delim = "\n"))
 colnames(intron5_scores_c) <- cons_genes_ara
 intron5_scores_c <- intron5_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
 intron5_scores_c$med <- rowMedians(as.matrix(intron5_scores_c[, c(1:22)]))
 median_c <- intron5_scores_c$med
 median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
-intron5_scores_c <- cbind(intron5_scores_c, median_c)
+mean_c <- intron5_scores_c$ave
+mean_c <- rollapply(mean_c, width = 3, by = 1, FUN = mean, partial = T)
+intron5_scores_c <- cbind(intron5_scores_c, median_c, mean_c)
 
-intron5_scores_plot <- as.data.frame(cbind(intron5_scores$position, intron5_scores$median, intron5_scores_c$median_c))
-colnames(intron5_scores_plot) <- c("position", "alt_med", "cons_med")
-intron5_scores_plot <-  intron5_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
-ggplot(intron5_scores_plot, aes(x = position, y = median, colour = Type_median))+
+intron5_scores_plot <- as.data.frame(cbind(intron5_scores$position, intron5_scores$median, intron5_scores_c$median_c, intron5_scores$mean, intron5_scores_c$mean_c))
+colnames(intron5_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+intron5_scores_plot <-  intron5_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(intron5_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  lims(y = c(0, 0.1))
+  #lims(y = c(0, 0.1))+
+  labs(title = "Intron 5' end - Arabidopsis only",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 5' SS")+
+  theme(legend.title = element_blank())
 ```
 
 intron 3
@@ -1225,24 +1270,33 @@ intron3_scores <- intron3_scores %>% mutate(ave = rowMeans(select(., AT1G09060:A
 intron3_scores$med <- rowMedians(as.matrix(intron3_scores[, c(1:21)]))
 median <- intron3_scores$med
 median <- rollapply(median, width = 3, by = 1, FUN = median, partial = T)
-intron3_scores <- cbind(intron3_scores, median)
-intron3_scores$position <- c(1:40)
+mean <- intron3_scores$ave
+mean <- rollapply(mean, width = 3, by = 1, FUN = mean, partial = T)
+intron3_scores <- cbind(intron3_scores, median, mean)
+intron3_scores$position <- c(-40:-1)
 
-intron3_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/upstream_exon/", pattern = "_phylop.wig", full.names = T)
+intron3_scores_c = list.files(path = "phastCons/Arabidopsis/constitutive/intron3/", pattern = "_phylop.wig", full.names = T)
 intron3_scores_c <- do.call(cbind, lapply(intron3_scores_c, read_delim, delim = "\n"))
 colnames(intron3_scores_c) <- cons_genes_ara
 intron3_scores_c <- intron3_scores_c %>% mutate(ave = rowMeans(select(., AT1G09060:AT5G64130))) 
 intron3_scores_c$med <- rowMedians(as.matrix(intron3_scores_c[, c(1:22)]))
 median_c <- intron3_scores_c$med
 median_c <- rollapply(median_c, width = 3, by = 1, FUN = median, partial = T)
-intron3_scores_c <- cbind(intron3_scores_c, median_c)
+mean_c <- intron3_scores_c$ave
+mean_c <- rollapply(mean_c, width = 3, by = 1, FUN = mean, partial = T)
+intron3_scores_c <- cbind(intron3_scores_c, median_c, mean_c)
 
-intron3_scores_plot <- as.data.frame(cbind(intron3_scores$position, intron3_scores$median, intron3_scores_c$median_c))
-colnames(intron3_scores_plot) <- c("position", "alt_med", "cons_med")
-intron3_scores_plot <-  intron3_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median")
-ggplot(intron3_scores_plot, aes(x = position, y = median, colour = Type_median))+
+intron3_scores_plot <- as.data.frame(cbind(intron3_scores$position, intron3_scores$median, intron3_scores_c$median_c, intron3_scores$mean, intron3_scores_c$mean_c))
+colnames(intron3_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
+intron3_scores_plot <-  intron3_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
+  pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+ggplot(intron3_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  lims(y = c(0, 0.1))
+  #lims(y = c(0, 0.1))+
+  labs(title = "Intron 3' end - Arabidopsis only",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 3' SS")+
+  theme(legend.title = element_blank())
 ```
 
 
