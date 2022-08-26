@@ -1,0 +1,57 @@
+---
+title: "filter fastas"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(phylotools)
+```
+
+```{r}
+genomes <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/1001genomes.csv", col_names = F)
+groups <- unique(genomes$X11)
+subset <- data.frame()
+set.seed(43)
+for (group in groups){
+  some_genomes <- filter(genomes, X11 == group)
+  subset <- rbind(subset, sample_n(some_genomes, 2))
+}
+subset$X1
+#accessions to be used: 6923, 6680, 7477, 2202, 19951, 9671, 544, 8723, 765, 14312, 5831, 6124, 8376, 6214, 9879, 9871, 9573, 9524, 9661, 9969 
+```
+filter SNP fasta to chosen accessions  (for tree building)
+```{r}
+snps <- as.data.frame(read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal_small_snphylo.fasta"))
+snps <- filter(snps, seq.name %in% subset$X1)
+dat2fasta(snps, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal20snps.fasta")
+```
+
+can we write a function that takes a folder as input and filters all the fastas in the folder? cause all the model gDNA and intron/exon sequences are in folders
+```{r}
+source(file = "filter_to_20.R")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/models")
+
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/alternative/downstream_exon")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/alternative/upstream_exon")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/alternative/intron3")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/alternative/intron5")
+
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/constitutive/downstream_exon")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/constitutive/upstream_exon")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/constitutive/intron3")
+filter_to_20("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/constitutive/intron5")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
