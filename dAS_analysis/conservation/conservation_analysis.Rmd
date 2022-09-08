@@ -1370,7 +1370,7 @@ upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med),
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  #lims(y = c(0.035, 0.05))+
+  lims(y = c(0.0185, 0.0225))+
   labs(title = "Upstream exons - 20 Arabidopsis accessions",
        y = "Mean phyloP score (3nt rolling average)",
        x = "Position relative to 5' SS")+
@@ -1412,7 +1412,7 @@ downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_m
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  #lims(y = c(0.035, 0.05))+
+  lims(y = c(0.0185, 0.0225))+
   labs(title = "Downstream exons - 20 Arabidopsis accessions",
        y = "Mean phyloP score (3nt rolling average)",
        x = "Position relative to 3' SS")+
