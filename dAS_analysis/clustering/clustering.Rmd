@@ -237,11 +237,11 @@ inc_long <- inc
 inc$sd <- NULL
 
 #now we have to pivot wider again for k means
-#inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
+inc <- inc %>% pivot_wider(names_from = group, values_from = AS_percent)
 
 #pivot wider the other way for hclust
-inc$GeneID <- NULL
-inc <- inc %>% pivot_wider(names_from = EVENT, values_from = AS_percent)
+#inc$GeneID <- NULL
+#inc <- inc %>% pivot_wider(names_from = EVENT, values_from = AS_percent)
 ```
 
 that's all set up then, next thing is k-means clustering. let's start with a scree plot
@@ -315,7 +315,7 @@ make the heatmap: like Anna's, we want the columns split by treatment group, and
 ```{r}
 png("test.png", units="in", width=12, height=12, res=300)
 
-Heatmap(mat5,  row_split = factor(inc5$cluster, levels = 5:1), cluster_row_slices = F, name = "Percent AS\n", show_row_dend = F, show_column_dend = F, show_row_names = F, column_order = c("K60d", "K60w", "K40d", "K40w", "K20d", "K20w", "Krw", "L60d", "L60w", "L40d", "L40w", "L20d", "L20w", "Lrw"), column_names_rot = 0, column_names_centered = T, left_annotation = ha, row_title = "Cluster", column_names_gp = grid::gpar(fontsize = 16), row_title_gp = gpar(fontsize = 16), heatmap_legend_param = list(labels_gp = gpar(fontsize = 16), title_gp = gpar(fontsize = 16), legend_height = unit(4, "cm")))
+Heatmap(mat5,  row_split = factor(inc5$cluster, levels = 5:1), cluster_row_slices = F, name = "PSI\n", show_row_dend = F, show_column_dend = T, show_row_names = F, column_names_rot = 0, column_names_centered = T, left_annotation = ha, row_title = "Cluster", column_names_gp = grid::gpar(fontsize = 16), row_title_gp = gpar(fontsize = 16), heatmap_legend_param = list(labels_gp = gpar(fontsize = 16), title_gp = gpar(fontsize = 16), legend_height = unit(4, "cm")))
 
 for(i in 1:5) {
     decorate_annotation("foo", slice = i, {
