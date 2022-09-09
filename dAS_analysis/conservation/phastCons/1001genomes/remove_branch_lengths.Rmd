@@ -1,0 +1,51 @@
+---
+title: "Untitled"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(phytools)
+library(ggtree)
+library(tidytree)
+library(treeio)
+```
+
+remove tree branch lengths
+```{r}
+tree <- read.tree("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal20snps_tree.nwk")
+tree$edge.length <- NULL
+is.binary(tree)
+#tree <- multi2di(tree)
+#write.tree(tree, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal20snps_tree_nolength.nwk")
+```
+
+add colours for admixture groups
+```{r}
+tree <- read.tree("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal20snps_tree.nwk")
+genome_data <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/1001genomes.csv", col_names = F) %>% 
+  filter(X1 %in% tree$tip.label) %>% 
+  select(X1, X11)
+colnames(genome_data) <- c("tip.label", "admixture_group")
+tree$tip.label <- as.numeric(tree$tip.label)
+tree <- treeio::full_join(tree, genome_data, by = c("label" = "tip.label"))
+ggtree(tree, aes(colour = admixture_group))+
+  geom_tiplab()
+```
+
+
+```{r}
+tree <- read.tree("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/athal_bs_tree.nwk")
+genome_data <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/phastCons/1001genomes/1001genomes.csv", col_names = F) %>% 
+  filter(X1 %in% tree$tip.label) %>% 
+  select(X1, X11)
+colnames(genome_data) <- c("tip.label", "admixture_group")
+tree$tip.label <- as.numeric(tree$tip.label)
+tree$node.label <- as.numeric(tree$node.label)
+tree <- treeio::full_join(tree, genome_data, by = c("label" = "tip.label"))
+ggtree(tree, aes(colour = admixture_group))+
+  geom_tiplab()+
+  geom_nodelab()
+
+```
+
+
