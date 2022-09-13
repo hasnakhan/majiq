@@ -907,12 +907,21 @@ downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_s
 colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
 downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line()+
-  labs(title = "Downstream exons - all species",
-       y = "Mean phyloP score (3nt rolling average)",
+  labs(title = "",
+       subtitle = "Downstream exon",
+       y = "",
        x = "Position relative to 3' SS")+
-  theme(legend.title = element_blank())
+  theme_minimal()+
+  theme(legend.title = element_blank())+
+  scale_y_continuous(position = "right")+
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+dev.off()
 ```
 
 intron 5'
@@ -1300,6 +1309,7 @@ ggplot(intron3_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
 ```
 
 standalone bit of code to make phylogenetic tree and structural conservation barplot
+this code isn't quite up to date, a ratio barplot and italicized tree exist in image form but the code has been lost to the ether (can be re-written as needed :)
 ```{r}
 library(ggtree)
 library(tidyverse)

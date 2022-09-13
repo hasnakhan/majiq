@@ -384,6 +384,7 @@ sad1 <- sad1 %>% select(!ends_with("-Q"), -c("GENE", "COORD", "LENGTH", "FullCO"
   filter(GeneID == "AT5G48870")
 
 ```
+
 ```{r}
 final_lsm5 <- data.frame()
 groups <- c("K60", "K40", "K20", "L60", "L40", "L20")

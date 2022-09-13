@@ -352,21 +352,93 @@ vd <- list(dAS_genes, DE_genes)
 venn.diagram(x = vd, filename = "test.png", category = c("dAS genes", "DE genes"), col = c("limegreen", "turquoise"), fill = c("limegreen", "turquoise"), fontfamily = "sans", cat.fontfamily = "sans", ext.text = F, cat.pos = 180, cat.cex = c(1.5, 1.5))
 ```
 
-```{r}
-ggVennDiagram(vd,
-              label_color = "black",
-              label_alpha = 0,
-              category.names = c("dAS genes", "DE genes"),
-              label_size = 4,
-              set_size = 4,
-              edge_size = 1)+
-  scale_fill_gradient(high = "skyblue4", low = "skyblue")
-```
-
 what's in the middle?
 ```{r}
 dASG <- dASG %>% filter(gene_comp %in% DE_genes)
 dASandDE <- unique(dASG$gene_comp)
 dASandDE[grepl("K20dK20w", dASandDE)]
 ```
+
+make a grouped barplot of dAS and DE genes for comparison
+```{r}
+dAS_genes <- as.data.frame(dAS_genes)
+DE_genes <- as.data.frame(DE_genes)
+dAS_genes <- dAS_genes %>% mutate(group = c("dAS")) %>% separate(dAS_genes, into = c("gene", "comp"), sep = "_")
+DE_genes <- DE_genes %>% mutate(group = c("DE")) %>% separate(DE_genes, into = c("gene", "comp"), sep = "_")
+
+barplot <- rbind(DE_genes, dAS_genes)
+
+order <- c("K60dK60w", "K40dK40w", "K20dK20w", "L60dL60w", "L40dL40w", "L20dL20w")
+group_order <- c("DE", "dAS")
+
+barplot <- barplot %>% group_by(group, comp) %>% summarize(count = n()) %>% 
+  mutate(scaled = ifelse(group == "dAS", count/0.06, count)) %>% 
+  mutate (group=factor(group,levels=group_order)) %>% 
+  arrange(group) %>% 
+  mutate(comp = factor(comp, levels = order)) %>% 
+  arrange(comp)
+
+```
+
+```{r}
+png("test.png", units="in", width=10, height=4, res=300)
+ggplot(barplot, aes(x = comp, y = scaled, fill = group))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  scale_y_continuous(sec.axis = sec_axis(trans = ~.*.06, name = "Number of dAS genes\n"), name = "Number of DE genes\n")+
+  scale_fill_manual(values = c("turquoise", "lightgreen"))+
+  theme_minimal()+
+  theme(axis.title.x = element_blank(),
+        legend.title = element_blank())
+dev.off()
+```
+
+next up: GO enrichment (all dAS and all DE genes)
+write lists of unique dAS and DE genes
+```{r}
+DE_list <- DE_genes %>% select(gene)
+DE_list <- unique(as.vector(DE_list))
+write.table(DE_list, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/DE_list_uniqueAGIs_dw.tsv", quote = F, col.names = F, row.names = F, sep = "\n")
+
+dAS_list <- dAS_genes %>% select(gene)
+dAS_list <- unique(as.vector(dAS_list))
+write.table(dAS_list, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/dAS_list_uniqueAGIs_dw.tsv", quote = F, col.names = F, row.names = F, sep = "\n")
+```
+
+GO enrichment barplot
+```{r}
+go <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/dAS_DE_GOpanther_dw.csv")
+go$max <- max(go$dAS_enrichment, go$DE_enrichment)
+go <- mutate(go, max = pmax(dAS_enrichment, DE_enrichment))
+go$Term <- factor(go$Term, levels = rev(go$Term))
+go <- pivot_longer(go, c(dAS_enrichment, DE_enrichment), names_to = "Type", values_to = "Enrichment")
+go <- go[order(go$max),]
+go_dAS <- filter(go, Type == "dAS_enrichment")
+go_DE <- filter(go, Type == "DE_enrichment")
+```
+
+can't figure out how to make a tornado plot with names in the middle, so gonna go with 2 separate plots
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(go_dAS, aes(x = Term, y = Enrichment))+
+  geom_bar(stat = "identity", position = "identity", fill = "lightgreen")+
+  coord_flip()+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5, size = 10))
+dev.off()
+```
+
+```{r}
+#reverse the order of bars so I can rotate 180 in ppt to line it up with dAS
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(go_DE, aes(x = fct_rev(Term), y = Enrichment))+
+  geom_bar(stat = "identity", position = "identity", fill = "turquoise")+
+  coord_flip()+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5, size = 10))
+dev.off()
+```
+
+
 
