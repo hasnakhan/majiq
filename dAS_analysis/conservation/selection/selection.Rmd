@@ -9,9 +9,10 @@ library(tidyverse)
 ```
 
 ```{r}
-alt_genes <- c("AT1G09060","AT1G24147","AT1G49740","AT1G53840","AT1G65230","AT1G67060","AT1G70310","AT1G75280","AT2G44360","AT2G47730","AT3G23400","AT3G44990","AT3G48570","AT3G54660","AT3G55330","AT4G24750","AT4G34830","AT5G14260","AT5G15960","AT5G22640","AT5G48870","AT5G49940","AT5G64130")
-setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_unfiltered/")
-sapply(alt_genes, dir.create)
+#there's an extra gene here since we're also interested in the A3SS gene
+alt_genes <- c("AT1G09060","AT1G14270","AT1G24147","AT1G49740","AT1G53840","AT1G65230","AT1G67060","AT1G70310","AT1G75280","AT2G44360","AT2G47730","AT3G23400","AT3G44990","AT3G48570","AT3G54660","AT3G55330","AT4G24750","AT4G34830","AT5G14260","AT5G15960","AT5G22640","AT5G48870","AT5G49940","AT5G64130")
+#setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_unfiltered/")
+#sapply(alt_genes, dir.create)
 ```
 
 ```{r}

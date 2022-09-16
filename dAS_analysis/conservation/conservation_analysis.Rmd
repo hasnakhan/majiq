@@ -16,7 +16,9 @@ library(tidyverse)
 setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/ortholog_lists/")
 files = list.files(pattern="*_orthologs.tsv")
 all_orthologs <- do.call(rbind, lapply(files, read_delim, delim = "\t")) %>% 
-  select(-c(1, 6))
+  select(-c(1, 6)) %>% 
+  filter(!`Gene Name` == "AT1G14270")
+#filter out the A3SS event
 
 #dAS_genes includes the 2 non-dAS control genes as well
 dAS_genes <- unique(all_orthologs$`Gene Name`)
@@ -878,13 +880,23 @@ upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$
 colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
 upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()+
-  labs(title = "Upstream exons - all species",
+  geom_line(size = 2)+
+  labs(title = "Eudicot species",
+       subtitle = "Upstream exon",
        y = "Mean phyloP score (3nt rolling average)",
        x = "Position relative to 5' SS")+
-  theme(legend.title = element_blank())
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        text = element_text(size = 14))+
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+dev.off()
 ```
+
 
 downstream exons
 ```{r}
@@ -912,13 +924,14 @@ downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_m
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()+
+  geom_line(size = 2)+
   labs(title = "",
        subtitle = "Downstream exon",
        y = "",
        x = "Position relative to 3' SS")+
   theme_minimal()+
-  theme(legend.title = element_blank())+
+  theme(legend.title = element_blank(),
+        text = element_text(size = 14))+
   scale_y_continuous(position = "right")+
   scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
 dev.off()
@@ -1378,14 +1391,23 @@ upexon_scores_plot <- as.data.frame(cbind(upexon_scores$position, upexon_scores$
 colnames(upexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
 upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
+title <- expression(paste(italic("A. thaliana "), "accessions"))
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()+
+  geom_line(size = 2)+
   lims(y = c(0.0185, 0.0225))+
-  labs(title = "Upstream exons - 20 Arabidopsis accessions",
+  labs(title = title,
+       subtitle = "Upstream exon",
        y = "Mean phyloP score (3nt rolling average)",
        x = "Position relative to 5' SS")+
-  theme(legend.title = element_blank())
-
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        text = element_text(size = 14))+
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+dev.off()
 ```
 
 downstream exons
@@ -1420,14 +1442,24 @@ downexon_scores_plot <- as.data.frame(cbind(downexon_scores$position, downexon_s
 colnames(downexon_scores_plot) <- c("position", "alt_med", "cons_med", "alt_mean", "cons_mean")
 downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_med), names_to = "Type_median", values_to = "median") %>% 
   pivot_longer(c(alt_mean, cons_mean), names_to = "Type_mean", values_to = "mean")
-ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line()+
-  lims(y = c(0.0185, 0.0225))+
-  labs(title = "Downstream exons - 20 Arabidopsis accessions",
-       y = "Mean phyloP score (3nt rolling average)",
-       x = "Position relative to 3' SS")+
-  theme(legend.title = element_blank())
 ```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line(size = 2)+
+  labs(title = "",
+       subtitle = "Downstream exon",
+       y = "",
+       x = "Position relative to 3' SS")+
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        text = element_text(size = 14))+
+  scale_y_continuous(position = "right", limits = c(0.0175, 0.0235))+
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+dev.off()
+```
+
 
 intron 5
 ```{r}
