@@ -4,12 +4,13 @@ output: html_document
 ---
 
 ```{r}
+library(readxl)
 library(phylotools)
 library(tidyverse)
 ```
 
 ```{r}
-#there's an extra gene here since we're also interested in the A3SS gene
+#there's an extra gene here compared to conservation.Rmd since we're also interested in the A3SS gene
 alt_genes <- c("AT1G09060","AT1G14270","AT1G24147","AT1G49740","AT1G53840","AT1G65230","AT1G67060","AT1G70310","AT1G75280","AT2G44360","AT2G47730","AT3G23400","AT3G44990","AT3G48570","AT3G54660","AT3G55330","AT4G24750","AT4G34830","AT5G14260","AT5G15960","AT5G22640","AT5G48870","AT5G49940","AT5G64130")
 #setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_unfiltered/")
 #sapply(alt_genes, dir.create)
@@ -44,7 +45,6 @@ for (gene in alt_genes){
     dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_unfiltered/", gene, "/Athaliana_", gene, "_cds.fasta", sep = ""))
 }
 ```
-
 
 Alyrata CDS
 ```{r}
@@ -145,6 +145,354 @@ for(i in 1:nrow(Stuberosum_orthologs)){
   out <- filter(Stuberosum_cds, seq.name == subset$`Ortholog Gene Name`)
   out$seq.name <- paste("Stuberosum_", out$seq.name, sep = "")
   dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_unfiltered/",subset$`Gene Name`, "/Stuberosum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+```
+
+after dN/dS analysis in SLAC, read back in the tables, filter out dS values < 0.0001 and calculated dN/dS. Can also join this to table of species with orthologs to each gene to check if that's having an effct, since I'm slightly worried about that.
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/slac_tables/")
+files = list.files(pattern="*.csv")
+```
+
+```{r}
+dnds <- data.frame()
+
+for (file in files){
+  temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/slac_tables/", file, sep = "")) %>% 
+    select(c(dS, dN)) %>% 
+    filter(dS != "null" & dS > 0.0001) %>% 
+    mutate(ratio = as.numeric(dN)/as.numeric(dS))
+  avg <- mean(temp$ratio)
+  to_add <- c(sub('\\.csv$', '', file), avg)
+  dnds <- rbind(dnds, to_add)
+}
+dnds$ratio <- as.numeric(dnds$ratio)
+mean(dnds$ratio)
+median(dnds$ratio)
+colnames(dnds) <- c("AGI", "ratio")
+ggplot(dnds, aes(x = as.numeric(ratio)))+
+  geom_histogram(fill = "seagreen")+
+  labs(x = "dN/dS")
+```
+
+```{r}
+ortho_counts <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/orthologs_filtered/orthologs.xlsx", sheet = "Sheet1")
+ortho_counts <- ortho_counts %>% pivot_longer(c(Ahalleri:Stuberosum), names_to = "species", values_to = "ortholog") %>% 
+  na.omit() %>% 
+  group_by(AGI) %>% 
+  summarize(num_orthologs = n())
+ortho_counts <- full_join(dnds, ortho_counts, by = "AGI")
+ggplot(ortho_counts, aes(x = num_orthologs, y = as.numeric(ratio)))+
+  geom_point()+
+  labs(x = "Number of species with ortholog",
+       y = "dN/dS")
+```
+
+```{r}
+model <- lm(ratio ~ num_orthologs, data = ortho_counts)
+summary(model)
+#nothing terribly interesting here
+```
+
+now need to choose 24 genes that are DE under drought stress, and 24 that are unregulated (might increase later if we're feeling fancy). for the DE genes, we'll also keep it to GCs for the time being (can add leaves if we add them to dAS to increase sample size)
+```{r}
+deg_dw <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "dw")
+
+#K20dK20w
+deg_k20dk20w <- as.data.frame(c(deg_dw$K20dK20w[2:length(deg_dw$K20dK20w)], deg_dw$...8[2:length(deg_dw$...8)]))
+deg_k20dk20w <- na.omit(deg_k20dk20w)
+deg_k20dk20w$comp <- c("K20dK20w")
+colnames(deg_k20dk20w) <- c("geneid", "comp")
+
+
+#K40dK40w
+deg_k40dk40w <- as.data.frame(c(deg_dw$K40dK40w[2:length(deg_dw$K40dK40w)], deg_dw$...5[2:length(deg_dw$...5)]))
+deg_k40dk40w <- na.omit(deg_k40dk40w)
+deg_k40dk40w$comp <- c("K40dK40w")
+colnames(deg_k40dk40w) <- c("geneid", "comp")
+
+#K60dK60w
+deg_k60dk60w <- as.data.frame(c(deg_dw$K60dK60w[2:length(deg_dw$K60dK60w)], deg_dw$...2[2:length(deg_dw$...2)]))
+deg_k60dk60w <- na.omit(deg_k60dk60w)
+deg_k60dk60w$comp <- c("K60dK60w")
+colnames(deg_k60dk60w) <- c("geneid", "comp")
+
+degs <- rbind(deg_k20dk20w, deg_k40dk40w, deg_k60dk60w)
+set.seed(43)
+degs24 <- sample_n(degs, 24)
+degs24$geneid
+```
+
+for unregulated genes, we need them not to be dAS or DE in any drought-induced comp (including leaf ones) so we'll need the leaf gene lists to make sure they're excluded
+```{r}
+#read in the leaf DEGs
+#L20dL20w
+deg_l20dl20w <- as.data.frame(c(deg_dw$L20dL20w[2:length(deg_dw$L20dL20w)], deg_dw$...17[2:length(deg_dw$...17)]))
+deg_l20dl20w <- na.omit(deg_l20dl20w)
+deg_l20dl20w$comp <- c("L20dL20w")
+colnames(deg_l20dl20w) <- c("geneid", "comp")
+
+#L40dL40w
+deg_l40dl40w <- as.data.frame(c(deg_dw$L40dL40w[2:length(deg_dw$L40dL40w)], deg_dw$...14[2:length(deg_dw$...14)]))
+deg_l40dl40w <- na.omit(deg_l40dl40w)
+deg_l40dl40w$comp <- c("L40dL40w")
+colnames(deg_l40dl40w) <- c("geneid", "comp")
+
+#L60dL60w
+deg_l60dl60w <- as.data.frame(c(deg_dw$L60dL60w[2:length(deg_dw$L60dL60w)], deg_dw$...11[2:length(deg_dw$...11)]))
+deg_l60dl60w <- na.omit(deg_l60dl60w)
+deg_l60dl60w$comp <- c("L60dL60w")
+colnames(deg_l60dl60w) <- c("geneid", "comp")
+
+all_degs <- rbind(degs, deg_l20dl20w, deg_l40dl40w, deg_l60dl60w) %>% select (geneid)
+
+#now the dAS genes
+all_dasg <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv") %>% select(GeneID)
+
+#now just need list of all Arabidopsis genes identified in sequencing and select 24 that aren't in either degs or dasg. 
+
+all_genes <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") %>% select(AGI) %>% filter(!AGI %in% all_dasg$GeneID & !AGI %in% all_degs$geneid)
+
+set.seed(43)
+unreg24 <- sample_n(all_genes, 24)
+unreg24
+
+#4 of these have no orthologs in any other species, so pick 4 new ones:
+set.seed(69)
+unreg4 <- sample_n(all_genes, 4)
+unreg4
+
+#this means that the final set of 24 unregulated genes is:
+unreg_24_final <- rbind(filter(unreg24, !AGI %in% c("AT2G36260", "AT1G09995", "AT3G24605", "AT4G15330")), "AT1G28320", "AT5G36400", "AT3G16120", "AT3G48250")
+```
+
+DEG orthologs:
+read in all_deg_orthologs.tsv, pull the unique AGIs (the 24 genes), filter by each and write out ortholog lists for each gene
+```{r}
+all_deg_orthologs <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/ortholog_lists/all_deg_orthologs.tsv")
+
+filter_orthologs <- function(gene, list, type){
+  temp <- filter(list, `Gene Name` == gene)
+  write_tsv(temp, paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/", type, "/ortholog_lists/", gene, "_orthologs.tsv", sep = ""))
+}
+
+sapply(degs24$geneid, filter_orthologs, list = all_deg_orthologs, type = "DE")
+#afterwards delete all_deg_orthologs.tsv to clear space and prevent confusion 
+```
+
+repeat for unregulated orthologs:
+```{r}
+all_unreg_orthologs <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/ortholog_lists/all_unregulated_orthologs.tsv")
+
+sapply(unreg_24_final$AGI, filter_orthologs, list = all_unreg_orthologs, type = "unregulated")
+```
+
+get orthologs for each DE gene
+```{r}
+de_genes <- degs24$geneid
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/")
+sapply(de_genes, dir.create)
+```
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/ortholog_lists/")
+de_files = list.files(pattern="*_orthologs.tsv")
+de_orthologs <- do.call(rbind, lapply(de_files, read_delim, delim = "\t")) %>% 
+  select(-c(1, 6))
+
+Alyrata_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Alyrata_v2.1")
+Ahalleri_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Ahalleri_v1.1")
+Brapa_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "BrapaFPsc_v1.3")
+Crubella_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Crubella_v1.1")
+Gmax_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Gmax_Wm82.a4.v1")
+Slycopersicum_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Slycopersicum_ITAG4.0")
+Stuberosum_de_orthologs <- filter(de_orthologs, `Ortholog Organism Name` == "Stuberosum_v6.1")
+```
+
+write out DE orthologs CDS for each species
+```{r}
+#Athaliana
+Athaliana_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Athaliana.cds.fa.gz"))
+Athaliana_cds$seq.name <- str_sub(Athaliana_cds$seq.name, 1, 9)
+
+for (gene in de_genes){
+  out <- filter(Athaliana_cds, seq.name == gene)
+  out$seq.name <- paste("Athaliana_", out$seq.name, sep = "")
+    dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/", gene, "/Athaliana_", gene, "_cds.fasta", sep = ""))
+}
+
+#Alyrata
+Alyrata_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Alyrata.cds.fa.gz"))
+Alyrata_cds$seq.name <- str_sub(Alyrata_cds$seq.name, 1, 9)
+
+for(i in 1:nrow(Alyrata_de_orthologs)){
+  subset <- Alyrata_de_orthologs[i, ]
+  out <- filter(Alyrata_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Alyrata_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Alyrata_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Ahalleri
+Ahalleri_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Ahalleri.cds.fa.gz"))
+Ahalleri_cds$seq.name <- gsub(".[0-9] pacid.*", "", Ahalleri_cds$seq.name)
+
+for(i in 1:nrow(Ahalleri_de_orthologs)){
+  subset <- Ahalleri_de_orthologs[i, ]
+  out <- filter(Ahalleri_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Ahalleri_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Ahalleri_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Brapa
+Brapa_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/BrapaFPsc.cds.fa.gz"))
+Brapa_cds$seq.name <- str_sub(Brapa_cds$seq.name, 1, 12)
+
+for(i in 1:nrow(Brapa_de_orthologs)){
+  subset <- Brapa_de_orthologs[i, ]
+  out <- filter(Brapa_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Brapa_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Brapa_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Crubella
+Crubella_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Crubella.cds.fa.gz"))
+Crubella_cds$seq.name <- str_sub(Crubella_cds$seq.name, 1, 15)
+
+for(i in 1:nrow(Crubella_de_orthologs)){
+  subset <- Crubella_de_orthologs[i, ]
+  out <- filter(Crubella_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Crubella_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Crubella_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Gmax
+Gmax_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Gmax.cds.fa.gz"))
+Gmax_cds$seq.name <- str_sub(Gmax_cds$seq.name, 1, 15)
+
+for(i in 1:nrow(Gmax_de_orthologs)){
+  subset <- Gmax_de_orthologs[i, ]
+  out <- filter(Gmax_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Gmax_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Gmax_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Slycopersicum
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_de_orthologs$`Ortholog Gene Name` <- str_replace(Slycopersicum_de_orthologs$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_de_orthologs$`Ortholog Gene Name` <- str_sub(Slycopersicum_de_orthologs$`Ortholog Gene Name`, 1, 14)
+
+Slycopersicum_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Slycopersicum.cds.fa.gz"))
+Slycopersicum_cds$seq.name <- str_sub(Slycopersicum_cds$seq.name, 1, 14)
+
+for(i in 1:nrow(Slycopersicum_de_orthologs)){
+  subset <- Slycopersicum_de_orthologs[i, ]
+  out <- filter(Slycopersicum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Slycopersicum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Slycopersicum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Stuberosum
+Stuberosum_cds <- (read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Stuberosum.cds.fa.gz"))
+Stuberosum_cds$seq.name <- str_sub(Stuberosum_cds$seq.name, 1, 18)
+
+for(i in 1:nrow(Stuberosum_de_orthologs)){
+  subset <- Stuberosum_de_orthologs[i, ]
+  out <- filter(Stuberosum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Stuberosum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/orthologs_unfiltered/",subset$`Gene Name`, "/Stuberosum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+```
+
+get orthologs for each unregulated gene
+```{r}
+unreg_genes <- unreg_24_final$AGI
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/")
+sapply(unreg_genes, dir.create)
+```
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/ortholog_lists/")
+unreg_files = list.files(pattern="*_orthologs.tsv")
+unreg_orthologs <- do.call(rbind, lapply(unreg_files, read_delim, delim = "\t")) %>% 
+  select(-c(1, 6))
+
+Alyrata_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Alyrata_v2.1")
+Ahalleri_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Ahalleri_v1.1")
+Brapa_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "BrapaFPsc_v1.3")
+Crubella_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Crubella_v1.1")
+Gmax_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Gmax_Wm82.a4.v1")
+Slycopersicum_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Slycopersicum_ITAG4.0")
+Stuberosum_unreg_orthologs <- filter(unreg_orthologs, `Ortholog Organism Name` == "Stuberosum_v6.1")
+```
+
+write out unregulated genes CDS for each species
+```{r}
+#Athaliana
+for (gene in unreg_genes){
+  out <- filter(Athaliana_cds, seq.name == gene)
+  out$seq.name <- paste("Athaliana_", out$seq.name, sep = "")
+    dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/", gene, "/Athaliana_", gene, "_cds.fasta", sep = ""))
+}
+
+#Alyrata
+for(i in 1:nrow(Alyrata_unreg_orthologs)){
+  subset <- Alyrata_unreg_orthologs[i, ]
+  out <- filter(Alyrata_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Alyrata_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Alyrata_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Ahalleri
+for(i in 1:nrow(Ahalleri_unreg_orthologs)){
+  subset <- Ahalleri_unreg_orthologs[i, ]
+  out <- filter(Ahalleri_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Ahalleri_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Ahalleri_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Brapa
+for(i in 1:nrow(Brapa_unreg_orthologs)){
+  subset <- Brapa_unreg_orthologs[i, ]
+  out <- filter(Brapa_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Brapa_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Brapa_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Crubella
+for(i in 1:nrow(Crubella_unreg_orthologs)){
+  subset <- Crubella_unreg_orthologs[i, ]
+  out <- filter(Crubella_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Crubella_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Crubella_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Gmax
+for(i in 1:nrow(Gmax_unreg_orthologs)){
+  subset <- Gmax_unreg_orthologs[i, ]
+  out <- filter(Gmax_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Gmax_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Gmax_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Slycopersicum
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_unreg_orthologs$`Ortholog Gene Name` <- str_replace(Slycopersicum_unreg_orthologs$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_unreg_orthologs$`Ortholog Gene Name` <- str_sub(Slycopersicum_unreg_orthologs$`Ortholog Gene Name`, 1, 14)
+
+for(i in 1:nrow(Slycopersicum_unreg_orthologs)){
+  subset <- Slycopersicum_unreg_orthologs[i, ]
+  out <- filter(Slycopersicum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Slycopersicum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Slycopersicum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Stuberosum
+for(i in 1:nrow(Stuberosum_unreg_orthologs)){
+  subset <- Stuberosum_unreg_orthologs[i, ]
+  out <- filter(Stuberosum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Stuberosum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Stuberosum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
 }
 ```
 
