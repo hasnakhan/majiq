@@ -156,7 +156,7 @@ files = list.files(pattern="*.csv")
 ```
 
 ```{r}
-dnds <- data.frame()
+dAS_dnds <- data.frame()
 
 for (file in files){
   temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/slac_tables/", file, sep = "")) %>% 
@@ -165,13 +165,13 @@ for (file in files){
     mutate(ratio = as.numeric(dN)/as.numeric(dS))
   avg <- mean(temp$ratio)
   to_add <- c(sub('\\.csv$', '', file), avg)
-  dnds <- rbind(dnds, to_add)
+  dAS_dnds <- rbind(dAS_dnds, to_add)
 }
-dnds$ratio <- as.numeric(dnds$ratio)
-mean(dnds$ratio)
-median(dnds$ratio)
-colnames(dnds) <- c("AGI", "ratio")
-ggplot(dnds, aes(x = as.numeric(ratio)))+
+dAS_dnds$ratio <- as.numeric(dAS_dnds$ratio)
+mean(dAS_dnds$ratio)
+median(dAS_dnds$ratio)
+colnames(dAS_dnds) <- c("AGI", "ratio")
+ggplot(dAS_dnds, aes(x = as.numeric(ratio)))+
   geom_histogram(fill = "seagreen")+
   labs(x = "dN/dS")
 ```
@@ -258,13 +258,13 @@ set.seed(43)
 unreg24 <- sample_n(all_genes, 24)
 unreg24
 
-#4 of these have no orthologs in any other species, so pick 4 new ones:
+#6 of these have no/only one orthologs in any other species, so pick 6 new ones:
 set.seed(69)
-unreg4 <- sample_n(all_genes, 4)
-unreg4
+unreg6 <- sample_n(all_genes, 7) #the 6th gene won't work either, so pull 7
+unreg6
 
 #this means that the final set of 24 unregulated genes is:
-unreg_24_final <- rbind(filter(unreg24, !AGI %in% c("AT2G36260", "AT1G09995", "AT3G24605", "AT4G15330")), "AT1G28320", "AT5G36400", "AT3G16120", "AT3G48250")
+unreg_24_final <- rbind(filter(unreg24, !AGI %in% c("AT2G36260", "AT1G09995", "AT3G24605", "AT4G15330", "AT1G53541", "AT4G22230")), "AT1G28320", "AT5G36400", "AT3G16120", "AT3G48250", "AT1G51580", "AT1G20270")
 ```
 
 DEG orthologs:
@@ -493,6 +493,348 @@ for(i in 1:nrow(Stuberosum_unreg_orthologs)){
   out <- filter(Stuberosum_cds, seq.name == subset$`Ortholog Gene Name`)
   out$seq.name <- paste("Stuberosum_", out$seq.name, sep = "")
   dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Stuberosum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+```
+
+plot dN/dS for dAS, DE and unregulated genes
+```{r}
+#this code exists above as well, but putting here for consistency
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/slac_tables/")
+dAS_files = list.files(pattern="*.csv")
+```
+
+```{r}
+dAS_dnds <- data.frame()
+
+for (file in dAS_files){
+  temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/dAS/slac_tables/", file, sep = "")) %>% 
+    select(c(dS, dN)) %>% 
+    mutate(dS = as.numeric(dS)) %>% 
+    filter(dS != "null" & dS > 0.0001) %>% 
+    mutate(ratio = as.numeric(dN)/as.numeric(dS))
+  avg <- mean(temp$ratio)
+  to_add <- c(sub('\\.csv$', '', file), avg)
+  dAS_dnds <- rbind(dAS_dnds, to_add)
+}
+colnames(dAS_dnds) <- c("AGI", "ratio")
+dAS_dnds$ratio <- as.numeric(dAS_dnds$ratio)
+mean(dAS_dnds$ratio) #0.3308
+median(dAS_dnds$ratio) #0.3321
+dAS_dnds <- mutate(dAS_dnds, reg = c("dAS"))
+```
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/slac_tables/")
+DE_files = list.files(pattern="*.csv")
+```
+
+```{r}
+DE_dnds <- data.frame()
+
+for (file in DE_files){
+  temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/DE/slac_tables/", file, sep = "")) %>% 
+    select(c(dS, dN)) %>% 
+    mutate(dS = as.numeric(dS)) %>% 
+    filter(dS != "null" & dS > 0.0001) %>% 
+    mutate(ratio = as.numeric(dN)/as.numeric(dS))
+  avg <- mean(temp$ratio)
+  to_add <- c(sub('\\.csv$', '', file), avg)
+  DE_dnds <- rbind(DE_dnds, to_add)
+}
+colnames(DE_dnds) <- c("AGI", "ratio")
+DE_dnds$ratio <- as.numeric(DE_dnds$ratio)
+mean(DE_dnds$ratio) #0.3567
+median(DE_dnds$ratio) #0.3626
+DE_dnds <- mutate(DE_dnds, reg = c("DE"))
+```
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/slac_tables/")
+unreg_files = list.files(pattern="*.csv")
+```
+
+```{r}
+unreg_dnds <- data.frame()
+
+for (file in unreg_files){
+  temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/unregulated/slac_tables/", file, sep = "")) %>% 
+    select(c(dS, dN)) %>% 
+    mutate(dS = as.numeric(dS)) %>% 
+    filter(dS != "null" & dS > 0.0001) %>% 
+    mutate(ratio = as.numeric(dN)/as.numeric(dS))
+  avg <- mean(temp$ratio)
+  to_add <- c(sub('\\.csv$', '', file), avg)
+  unreg_dnds <- rbind(unreg_dnds, to_add)
+}
+colnames(unreg_dnds) <- c("AGI", "ratio")
+unreg_dnds$ratio <- as.numeric(unreg_dnds$ratio)
+mean(unreg_dnds$ratio) #0.3675
+median(unreg_dnds$ratio) #0.3316
+unreg_dnds <- mutate(unreg_dnds, reg = c("unregulated"))
+```
+
+plot dN/dS
+```{r}
+dnds <- rbind(dAS_dnds, DE_dnds, unreg_dnds) %>% 
+  mutate(reg = factor(reg, levels = c("unregulated", "DE", "dAS")))
+ggplot(dnds, aes(x = reg, y = ratio, fill = reg))+
+  geom_boxplot(alpha = 0.6)+
+  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "",
+       y = "dN/dS")+
+  scale_x_discrete(labels = c("unregulated" = "Unregulated\ngenes", "dAS" ="dAS genes", "DE" = "DE genes"))+
+  geom_signif(y_position = c(1.5, 0.8, 1.7), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("NS", "NS", "NS"), colour = "grey10", tip_length = 0.01)
+
+dnds_model <- aov(ratio ~ reg, data = dnds)
+summary(dnds_model) #nothing significant
+
+```
+
+it's well established that genes with high expression tend to be under stronger purifying selection. wonder if this is influencing our results... let's look at TPMs of all dAS genes vs DE genes vs all genes to first make sure that dAS genes are more highly expressed
+```{r}
+#need to read in all the TPMs, and lists of genes that are DE or dAS (drought induced and developmental comps)
+#have all these things already, but will read them back in here for simplicity, as well as adding the developmental DEGs 
+# keep the droughted developmental comps out since Anna didn't do DE analysis for those
+TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") 
+length(TPMs$AGI)
+all_dasg_tpm <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv") %>% 
+  filter(!comp %in% c("K20dL20d", "K40dL40d", "K60dL60d")) %>%
+  select(GeneID)
+all_dasg_tpm <- unique(all_dasg_tpm$GeneID) #406 unique dAS genes in either drought or developmental comps
+
+#DEGs
+#we're not gonna involve directionality here, but we can always dig it out of all_events
+deg_dw <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "dw")
+
+#K20dK20w
+deg_k20dk20w <- as.data.frame(c(deg_dw$K20dK20w[2:length(deg_dw$K20dK20w)], deg_dw$...8[2:length(deg_dw$...8)]))
+deg_k20dk20w <- na.omit(deg_k20dk20w)
+deg_k20dk20w$comp <- c("K20dK20w")
+colnames(deg_k20dk20w) <- c("geneid", "comp")
+
+#K40dK40w
+deg_k40dk40w <- as.data.frame(c(deg_dw$K40dK40w[2:length(deg_dw$K40dK40w)], deg_dw$...5[2:length(deg_dw$...5)]))
+deg_k40dk40w <- na.omit(deg_k40dk40w)
+deg_k40dk40w$comp <- c("K40dK40w")
+colnames(deg_k40dk40w) <- c("geneid", "comp")
+
+#K60dK60w
+deg_k60dk60w <- as.data.frame(c(deg_dw$K60dK60w[2:length(deg_dw$K60dK60w)], deg_dw$...2[2:length(deg_dw$...2)]))
+deg_k60dk60w <- na.omit(deg_k60dk60w)
+deg_k60dk60w$comp <- c("K60dK60w")
+colnames(deg_k60dk60w) <- c("geneid", "comp")
+
+#L20dL20w
+deg_l20dl20w <- as.data.frame(c(deg_dw$L20dL20w[2:length(deg_dw$L20dL20w)], deg_dw$...17[2:length(deg_dw$...17)]))
+deg_l20dl20w <- na.omit(deg_l20dl20w)
+deg_l20dl20w$comp <- c("L20dL20w")
+colnames(deg_l20dl20w) <- c("geneid", "comp")
+
+#L40dL40w
+deg_l40dl40w <- as.data.frame(c(deg_dw$L40dL40w[2:length(deg_dw$L40dL40w)], deg_dw$...14[2:length(deg_dw$...14)]))
+deg_l40dl40w <- na.omit(deg_l40dl40w)
+deg_l40dl40w$comp <- c("L40dL40w")
+colnames(deg_l40dl40w) <- c("geneid", "comp")
+
+#L60dL60w
+deg_l60dl60w <- as.data.frame(c(deg_dw$L60dL60w[2:length(deg_dw$L60dL60w)], deg_dw$...11[2:length(deg_dw$...11)]))
+deg_l60dl60w <- na.omit(deg_l60dl60w)
+deg_l60dl60w$comp <- c("L60dL60w")
+colnames(deg_l60dl60w) <- c("geneid", "comp")
+
+#KwLw
+deg_kl <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "kl")
+deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
+deg_kwlw <- na.omit(deg_kwlw)
+deg_kwlw$comp <- c("KwLw")
+colnames(deg_kwlw) <- c("geneid", "comp")
+
+all_degs_tpm <- rbind(deg_k20dk20w, deg_k40dk40w, deg_k60dk60w, deg_l20dl20w, deg_l40dl40w, deg_l60dl60w, deg_kwlw) %>% select(geneid)
+all_degs_tpm <- unique(all_degs_tpm$geneid) #8989 unique DEGs in drought or watered developmental comps
+```
+
+need to make a dataframe of all genes and treatments, where TPM is a column, then rbind on the dAS and DE genes and use that to plot
+```{r}
+TPMs <- TPMs %>% pivot_longer(cols = K60d:L20w, names_to = "treatment", values_to = "TPM")
+all_tpm <- TPMs %>% mutate(reg = c("all"))
+all_dasg_tpm <- TPMs %>% filter(AGI %in% all_dasg_tpm) %>% 
+  mutate(reg = c("dAS"))
+all_degs_tpm <- TPMs %>% filter(AGI %in% all_degs_tpm) %>% 
+  mutate(reg = c("DE"))
+tpm_final <- rbind(all_tpm, all_dasg_tpm, all_degs_tpm) %>% 
+  group_by(AGI, reg) %>% 
+  summarize(min = min(TPM), max = max(TPM), med = median(TPM))
+```
+
+```{r}
+library(ggridges)
+library(ggsignif)
+model <- aov(med ~ reg, data = tpm_final)
+summary(model)
+#so median TPM differs significantly by regulation type, how so?
+tukey <- TukeyHSD(model)
+tukey$reg
+#by all types: all << DE << dAS
+
+#what's the upper filter people use for TPM?
+#ggsignif is running t-test to figure out how many stars to put, but we know they're correct from our analysis above
+tpm_final %>% filter(med < 500) %>% 
+  mutate(reg = factor(reg, levels = c("DE", "dAS", "all"))) %>% 
+ggplot(., aes(x = med, y = reg, fill = reg, colour= reg))+
+  geom_density_ridges(scale = .95, alpha = 0.6)+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "Median TPM across treatment groups",
+       y = "")+
+  scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "all" = "All genes\nn = 27 442"))+
+geom_signif(y_position = c(530, 560, 590), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+```
+
+what percent of genes in each group did we eliminate from the graph by keeping TPM less than or equal to 500?
+```{r}
+all_elim <- tpm_final %>% filter(reg == "all" & med > 500) #271
+129/27442*100 #0.47%
+
+das_elim <- tpm_final %>% filter(reg == "dAS" & med > 500)
+10/406*100 #2.46%
+
+de_elim <- tpm_final %>% filter(reg == "DE" & med > 500) #230
+122/8989*100 #1.36%
+#interestingly, almost all the genes that were eliminated are DE genes, wonder why?
+
+high_TPM <- TPMs %>% filter(AGI %in% all_elim$AGI)
+high_TPM
+#guess at that point there's so much statistical power from the read depth that identifying DE is really easy? and small fluctuations in gene exp are gonna be large in terms of absolute value when the baseline expression is high
+```
+
+does gene exp affect dN/dS in our data?
+```{r}
+tpm_final_all <- filter(tpm_final, reg == "all")
+dnds <- left_join(dnds, tpm_final_all, by = "AGI")
+ggplot(dnds, aes(x = med, y = ratio,colour= reg.x))+
+  geom_point(alpha = 0.8)+
+  scale_colour_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "Median TPM across treatment groups",
+       y = "")
+#nothing really new here, shows that dAS TPMs are higher, but since there's no correlation between dNdS and TPM, might leave this out
+test <- lm(ratio ~ med, data = dnds)
+summary(test)
+#yup, not significant
+```
+
+
+as a fourth group in the selection analysis, let's test some highly expressed but unregulated genes (TPM > min dAS TPM)
+```{r}
+min_dAS <- filter(tpm_final, reg == "dAS")
+min(min_dAS$med) #6.83 tpm, so select random subset of unregulated genes with TPM higher than this
+tpm_unreg <- tpm_final_all %>% filter(!AGI %in% all_dasg_tpm$AGI & !AGI %in% all_degs_tpm$AGI & med > 6.8)
+#so 20 073 genes are unregulated, 8891 are unregulated and meet the TPm cutoff (44%). makes sense given TPMs for regulated genes are higher
+set.seed(43)
+high_unreg <- sample_n(as.data.frame(tpm_unreg), 24)
+```
+
+read in all high TPM orthologs and write out individual gene ortholog lists
+```{r}
+all_high_orthologs <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/ortholog_lists/all_high_orthologs.tsv")
+
+sapply(high_unreg$AGI, filter_orthologs, list = all_high_orthologs, type = "high_tpm_unregulated")
+```
+
+get CDS sequences:
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/")
+sapply(high_unreg$AGI, dir.create)
+```
+
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/ortholog_lists/")
+high_files = list.files(pattern="*_orthologs.tsv")
+high_orthologs <- do.call(rbind, lapply(high_files, read_delim, delim = "\t")) %>% 
+  select(-c(1, 6))
+
+Alyrata_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Alyrata_v2.1")
+Ahalleri_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Ahalleri_v1.1")
+Brapa_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "BrapaFPsc_v1.3")
+Crubella_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Crubella_v1.1")
+Gmax_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Gmax_Wm82.a4.v1")
+Slycopersicum_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Slycopersicum_ITAG4.0")
+Stuberosum_high_orthologs <- filter(high_orthologs, `Ortholog Organism Name` == "Stuberosum_v6.1")
+```
+
+```{r}
+#Athaliana
+for (gene in high_unreg$AGI){
+  out <- filter(Athaliana_cds, seq.name == gene)
+  out$seq.name <- paste("Athaliana_", out$seq.name, sep = "")
+    dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/", gene, "/Athaliana_", gene, "_cds.fasta", sep = ""))
+}
+
+#Alyrata
+for(i in 1:nrow(Alyrata_high_orthologs)){
+  subset <- Alyrata_high_orthologs[i, ]
+  out <- filter(Alyrata_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Alyrata_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Alyrata_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Ahalleri
+for(i in 1:nrow(Ahalleri_high_orthologs)){
+  subset <- Ahalleri_high_orthologs[i, ]
+  out <- filter(Ahalleri_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Ahalleri_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Ahalleri_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Brapa
+for(i in 1:nrow(Brapa_high_orthologs)){
+  subset <- Brapa_high_orthologs[i, ]
+  out <- filter(Brapa_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Brapa_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Brapa_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Crubella
+for(i in 1:nrow(Crubella_high_orthologs)){
+  subset <- Crubella_high_orthologs[i, ]
+  out <- filter(Crubella_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Crubella_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Crubella_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Gmax
+for(i in 1:nrow(Gmax_high_orthologs)){
+  subset <- Gmax_high_orthologs[i, ]
+  out <- filter(Gmax_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Gmax_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Gmax_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Slycopersicum
+#tomato-specific workarounds for weird gene IDs
+Slycopersicum_high_orthologs$`Ortholog Gene Name` <- str_replace(Slycopersicum_high_orthologs$`Ortholog Gene Name`, "gene:", "")
+Slycopersicum_high_orthologs$`Ortholog Gene Name` <- str_sub(Slycopersicum_high_orthologs$`Ortholog Gene Name`, 1, 14)
+
+for(i in 1:nrow(Slycopersicum_high_orthologs)){
+  subset <- Slycopersicum_high_orthologs[i, ]
+  out <- filter(Slycopersicum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Slycopersicum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Slycopersicum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
+}
+
+#Stuberosum
+for(i in 1:nrow(Stuberosum_high_orthologs)){
+  subset <- Stuberosum_high_orthologs[i, ]
+  out <- filter(Stuberosum_cds, seq.name == subset$`Ortholog Gene Name`)
+  out$seq.name <- paste("Stuberosum_", out$seq.name, sep = "")
+  dat2fasta(out, outfile = paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/orthologs_unfiltered/",subset$`Gene Name`, "/Stuberosum_", subset$`Ortholog Gene Name`, "_cds.fasta", sep = ""))
 }
 ```
 
