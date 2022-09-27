@@ -838,3 +838,47 @@ for(i in 1:nrow(Stuberosum_high_orthologs)){
 }
 ```
 
+run chunks 27-32 above (dN/dS scores), then add on the high expression unregulated group
+```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/slac_tables/")
+high_files = list.files(pattern="*.csv")
+```
+
+```{r}
+high_dnds <- data.frame()
+
+for (file in high_files){
+  temp <- read_csv(paste("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/selection/high_tpm_unregulated/slac_tables/", file, sep = "")) %>% 
+    select(c(dS, dN)) %>% 
+    mutate(dS = as.numeric(dS)) %>% 
+    filter(dS != "null" & dS > 0.0001) %>% 
+    mutate(ratio = as.numeric(dN)/as.numeric(dS))
+  avg <- mean(temp$ratio)
+  to_add <- c(sub('\\.csv$', '', file), avg)
+  high_dnds <- rbind(high_dnds, to_add)
+}
+colnames(high_dnds) <- c("AGI", "ratio")
+high_dnds$ratio <- as.numeric(high_dnds$ratio)
+mean(high_dnds$ratio) #0.3435
+median(high_dnds$ratio) #0.3262
+high_dnds <- mutate(high_dnds, reg = c("high_tpm_unregulated"))
+```
+
+plot dN/dS agan using all 4 groups
+```{r}
+dnds <- rbind(dAS_dnds, DE_dnds, unreg_dnds, high_dnds) %>% 
+  mutate(reg = factor(reg, levels = c("unregulated","high_tpm_unregulated",  "DE", "dAS")))
+ggplot(dnds, aes(x = reg, y = ratio, fill = reg))+
+  geom_boxplot(alpha = 0.6)+
+  scale_fill_manual(values = c("orchid", "purple", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "",
+       y = "dN/dS")+
+  scale_x_discrete(labels = c("unregulated" = "Unregulated genes",  "high_tpm_unregulated" = "Unregulated genes\nTPM > 6.8", "dAS" ="dAS genes", "DE" = "DE genes"))
+  #geom_signif(y_position = c(1.5, 0.8, 1.7), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("NS", "NS", "NS"), colour = "grey10", tip_length = 0.01)
+
+dnds_model <- aov(ratio ~ reg, data = dnds)
+summary(dnds_model) #still nothing significant
+```
+

@@ -883,19 +883,13 @@ upexon_scores_plot <-  upexon_scores_plot %>% pivot_longer(c(alt_med, cons_med),
 ```
 
 ```{r}
-png("test.png", units="in", width=6, height=4, res=300)
-ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
-  geom_line(size = 2)+
-  labs(title = "Eudicot species",
-       subtitle = "Upstream exon",
-       y = "Mean phyloP score (3nt rolling average)",
-       x = "Position relative to 5' SS")+
-  theme_minimal()+
-  theme(legend.title = element_blank(),
-        text = element_text(size = 14))+
-  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
-dev.off()
+upexon_scores_test <- upexon_scores_plot %>% 
+  pivot_wider(names_from = Type_mean, values_from = mean) %>% 
+  filter(Type_median == "alt_med")
+wilcox.test(upexon_scores_test$cons_mean, upexon_scores_test$alt_mean, paired = T, alternative = "greater") #p = 9.095e-13
 ```
+
+
 
 
 downstream exons
@@ -922,7 +916,7 @@ downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_m
 ```
 
 ```{r}
-png("test.png", units="in", width=6, height=4, res=300)
+#png("test.png", units="in", width=6, height=4, res=300)
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line(size = 2)+
   labs(title = "",
@@ -936,6 +930,14 @@ ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
 dev.off()
 ```
+
+```{r}
+downexon_scores_test <- downexon_scores_plot %>% 
+  pivot_wider(names_from = Type_mean, values_from = mean) %>% 
+  filter(Type_median == "alt_med")
+wilcox.test(downexon_scores_test$cons_mean, downexon_scores_test$alt_mean, paired = T, alternative = "greater") #p = 9.095e-13
+```
+
 
 intron 5'
 ```{r}
@@ -1357,6 +1359,46 @@ g %>% insert_right(b)
 g
 ```
 
+statistical testing on the ratios (Fisher's exact test with post-hoc BH correction)
+no significant differences
+```{r}
+AlyrataFET <- data.frame(cons = c(21, 21),
+                         notcons = c(0, 1),
+                         row.names = c("Alt", "Const"))
+fisher.test(AlyrataFET) #p = 1
+
+AhalleriFET <- data.frame(cons = c(19, 18),
+                         notcons = c(2, 3),
+                         row.names = c("Alt", "Const"))
+fisher.test(AhalleriFET) # p = 1
+
+BrapaFET <- data.frame(cons = c(21, 21),
+                         notcons = c(1, 1),
+                         row.names = c("Alt", "Const"))
+fisher.test(BrapaFET) # p = 1
+
+CrubellaFET <- data.frame(cons = c(19, 20),
+                         notcons = c(3, 2),
+                         row.names = c("Alt", "Const"))
+fisher.test(CrubellaFET) # p = 1
+
+StuberosumFET <- data.frame(cons = c(13, 15),
+                         notcons = c(5, 4),
+                         row.names = c("Alt", "Const"))
+fisher.test(StuberosumFET) # p = 0.714
+
+SlycopersicumFET <- data.frame(cons = c(15, 16),
+                         notcons = c(4, 4),
+                         row.names = c("Alt", "Const"))
+fisher.test(SlycopersicumFET) #p = 1
+
+GmaxFET <- data.frame(cons = c(11, 15),
+                         notcons = c(5, 2),
+                         row.names = c("Alt", "Const"))
+fisher.test(GmaxFET) #0.2245
+```
+
+
 from the 1001 genomes data, we did phyloP on 20 accessions
 upstream exons
 ```{r}
@@ -1410,6 +1452,16 @@ ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
 dev.off()
 ```
 
+test for significance by wilcoxon sign-rank test (basically a non-parametric paired t-test)
+```{r}
+upexon_scores_test <- upexon_scores_plot %>% 
+  pivot_wider(names_from = Type_mean, values_from = mean) %>% 
+  filter(Type_median == "alt_med")
+wilcox.test(upexon_scores_test$alt_mean, upexon_scores_test$cons_mean, paired = T, alternative = "greater") #p = 0.004984
+```
+
+
+
 downstream exons
 ```{r}
 downexon_scores = list.files(path = "phastCons/1001genomes/alternative/downstream_exon/", pattern = "_phylop.wig", full.names = T)
@@ -1458,6 +1510,14 @@ ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   scale_y_continuous(position = "right", limits = c(0.0175, 0.0235))+
   scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
 dev.off()
+```
+
+wilcoxon sign-rank test
+```{r}
+downexon_scores_test <- downexon_scores_plot %>% 
+  pivot_wider(names_from = Type_mean, values_from = mean) %>% 
+  filter(Type_median == "alt_med")
+wilcox.test(downexon_scores_test$alt_mean, downexon_scores_test$cons_mean, paired = T, alternative = "greater") #p = 1.494e-06
 ```
 
 
