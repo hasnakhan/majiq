@@ -1,0 +1,11 @@
+---
+title: "pleiotropy"
+output: html_document
+---
+
+pleiotropy analysis: has dAS evolved to regulate the expression of pleiotropic genes to minimize off-target effects? It's been shown that differential expression is constrained in pleiotropic genes so we're asking, has dAS evolved to fill that role?
+
+```{r}
+library(tidyverse)
+```
+
