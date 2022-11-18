@@ -7,5 +7,155 @@ pleiotropy analysis: has dAS evolved to regulate the expression of pleiotropic g
 
 ```{r}
 library(tidyverse)
+library(moments)
+library(readxl)
+```
+
+```{r}
+gene_exp <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/Klepikova.tsv", delim = "\t")
+
+#add Anna's GC data (K20w) in RPKM to the Klepikova atlas, and convert all NAs to 0
+#i'm somehwat concerned about the low RPKMs in the GC data, i might repeat the analysis later, excluding these values
+gc <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/AVERAGE_rpkm.csv") %>% select(AGI, K20w)
+gc$ID <- gc$AGI
+gc$AGI <- NULL
+gene_exp <- full_join(gene_exp, gc, by = "ID")
+gene_exp[is.na(gene_exp)] <- 0
+```
+
+use a kurtosis filter to remove housekeeping genes, as in Li et al 2012
+```{r}
+gene_exp <- gene_exp %>% rowwise() %>% 
+  mutate(kurt = kurtosis(c_across(2:140)),
+         ans = as.numeric(anscombe.test(c_across(2:140), alternative = "l")$p.value)) %>% 
+  ungroup()
+#the alternative setting is the opposite of how I thought it would work, but setting alternative = "l" tests the alternative hypothesis that kurtosis is > 3... which is what we want, it just doesn't seem that way...
+
+#since we've done multiple comparisons, now we need to correct them (FDR)
+gene_exp$padj <- p.adjust(gene_exp$ans, "fdr")
+
+#filter out genes with padj > 0.005 (extra-strignent cutoff imposed by Li et al due to very large sample size and lots of tissue types)
+lepto <- filter(gene_exp, padj <= 0.005)
+
+nrow(lepto) / nrow(gene_exp)
+#73% of genes meet the leptokurtosis filter (not housekeeping genes). Li et al found that 62% of Arabidopsis genes were leptokurtic using microarray data, but our value is in the right ballpark and similar to values obtained for mammals
+
+slightly_lepto <- filter(gene_exp, padj <= 0.05)
+nrow(slightly_lepto) / nrow(gene_exp)
+#if we use a standard 0.05 cutoff, we keep 80% of genes, so we aren't losing too many more with the strict cutoff
+```
+
+calculate tissue-specificity for the leptokurtic genes. This will distinguish between tissue-specific genes, and those that are expressed in multiple tissue types, and is the metric we'll use for comparing dAS, DE and unregulated genes, as in Rogers et al, 2021, using the tissue-specificity index developed by Yanai et al 2005. 
+```{r}
+tau <- function(gene){
+  exp <- filter(gene_exp, ID == gene)
+  raw_exp <- unlist(exp[2:140])
+  max <- max(raw_exp)
+  norm_exp <- raw_exp/max
+  component <- (1 - norm_exp)/138
+  tau <- sum(component, na.rm = T)
+}
+exp_profile <- sapply(lepto$ID, tau)
+exp_profile <- as.data.frame(exp_profile)
+exp_profile$ID <- row.names(exp_profile)
+```
+
+now compare tau values (gene expression breadth) of non-housekeeping dAS, DE, and unregulated genes
+```{r}
+#dASGs
+all_dasg <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv") %>% 
+  filter(!comp %in% c("K20dL20d", "K40dL40d", "K60dL60d")) %>%
+  select(GeneID)
+all_dasg <- as.data.frame(unique(all_dasg$GeneID))
+colnames(all_dasg) <- "ID"
+
+#DEGs
+deg_dw <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "dw")
+
+#K20dK20w
+deg_k20dk20w <- as.data.frame(c(deg_dw$K20dK20w[2:length(deg_dw$K20dK20w)], deg_dw$...8[2:length(deg_dw$...8)]))
+deg_k20dk20w <- na.omit(deg_k20dk20w)
+deg_k20dk20w$comp <- c("K20dK20w")
+colnames(deg_k20dk20w) <- c("geneid", "comp")
+
+#K40dK40w
+deg_k40dk40w <- as.data.frame(c(deg_dw$K40dK40w[2:length(deg_dw$K40dK40w)], deg_dw$...5[2:length(deg_dw$...5)]))
+deg_k40dk40w <- na.omit(deg_k40dk40w)
+deg_k40dk40w$comp <- c("K40dK40w")
+colnames(deg_k40dk40w) <- c("geneid", "comp")
+
+#K60dK60w
+deg_k60dk60w <- as.data.frame(c(deg_dw$K60dK60w[2:length(deg_dw$K60dK60w)], deg_dw$...2[2:length(deg_dw$...2)]))
+deg_k60dk60w <- na.omit(deg_k60dk60w)
+deg_k60dk60w$comp <- c("K60dK60w")
+colnames(deg_k60dk60w) <- c("geneid", "comp")
+
+#L20dL20w
+deg_l20dl20w <- as.data.frame(c(deg_dw$L20dL20w[2:length(deg_dw$L20dL20w)], deg_dw$...17[2:length(deg_dw$...17)]))
+deg_l20dl20w <- na.omit(deg_l20dl20w)
+deg_l20dl20w$comp <- c("L20dL20w")
+colnames(deg_l20dl20w) <- c("geneid", "comp")
+
+#L40dL40w
+deg_l40dl40w <- as.data.frame(c(deg_dw$L40dL40w[2:length(deg_dw$L40dL40w)], deg_dw$...14[2:length(deg_dw$...14)]))
+deg_l40dl40w <- na.omit(deg_l40dl40w)
+deg_l40dl40w$comp <- c("L40dL40w")
+colnames(deg_l40dl40w) <- c("geneid", "comp")
+
+#L60dL60w
+deg_l60dl60w <- as.data.frame(c(deg_dw$L60dL60w[2:length(deg_dw$L60dL60w)], deg_dw$...11[2:length(deg_dw$...11)]))
+deg_l60dl60w <- na.omit(deg_l60dl60w)
+deg_l60dl60w$comp <- c("L60dL60w")
+colnames(deg_l60dl60w) <- c("geneid", "comp")
+
+#KwLw
+deg_kl <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "kl")
+deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
+deg_kwlw <- na.omit(deg_kwlw)
+deg_kwlw$comp <- c("KwLw")
+colnames(deg_kwlw) <- c("geneid", "comp")
+
+all_degs <- rbind(deg_k20dk20w, deg_k40dk40w, deg_k60dk60w, deg_l20dl20w, deg_l40dl40w, deg_l60dl60w, deg_kwlw) %>% select(geneid)
+all_degs <- as.data.frame(unique(all_degs$geneid))
+colnames(all_degs) <- "ID"
+
+all_unreg <- filter(lepto, !ID %in% all_dasg$ID & !ID %in% all_degs$ID) %>% 
+  select(ID)
+```
+
+plot tissue specificity of dAS, DE and unregulated genes
+```{r}
+all_dasg <- left_join(all_dasg, exp_profile) %>% 
+  mutate(group = "Differentially spliced")
+all_degs <- left_join(all_degs, exp_profile) %>% 
+  mutate(group = "Differentially expressed")
+all_unreg <- left_join(all_unreg, exp_profile) %>% 
+  mutate(group = "Unregulated")
+all_taus <- rbind(all_dasg, all_degs, all_unreg)
+
+ggplot(all_taus, aes(x = group, y = exp_profile))+
+  geom_boxplot()+
+  labs(y = "Tissue specificity index",
+       x = "")
+
+model <- aov(all_taus$exp_profile ~ all_taus$group)
+summary(model)
+tukey <- TukeyHSD(model)
+```
+
+so those differences are highly signficant, but is there a confounding effect of TPM?
+```{r}
+TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") 
+TPMs <- TPMs %>% pivot_longer(cols = K60d:L20w, names_to = "treatment", values_to = "TPM") %>% 
+  group_by(AGI) %>% 
+  summarize(min = min(TPM), max = max(TPM), med = median(TPM)) %>% 
+  mutate(ID = AGI)
+all_taus <- left_join(all_taus, TPMs)
+twoway <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$med)
+summary(twoway)
+ggplot(all_taus, aes(x = med, y = exp_profile))+
+  geom_point()+
+  lims(x = c(0, 500))+
+  geom_smooth(method = "lm")
 ```
 
