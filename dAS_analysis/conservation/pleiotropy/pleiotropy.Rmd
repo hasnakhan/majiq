@@ -58,6 +58,8 @@ tau <- function(gene){
 exp_profile <- sapply(lepto$ID, tau)
 exp_profile <- as.data.frame(exp_profile)
 exp_profile$ID <- row.names(exp_profile)
+
+#kurtosis filter seems to have worked as minimum tau is 0.35, so housekeeping genes seem to have been well removed
 ```
 
 now compare tau values (gene expression breadth) of non-housekeeping dAS, DE, and unregulated genes
@@ -131,7 +133,8 @@ all_degs <- left_join(all_degs, exp_profile) %>%
   mutate(group = "Differentially expressed")
 all_unreg <- left_join(all_unreg, exp_profile) %>% 
   mutate(group = "Unregulated")
-all_taus <- rbind(all_dasg, all_degs, all_unreg)
+all_taus <- rbind(all_dasg, all_degs, all_unreg) %>% 
+  filter(exp_profile > 0) #filter out housekeeping genes, where exp_profile is na
 
 ggplot(all_taus, aes(x = group, y = exp_profile))+
   geom_boxplot()+
@@ -145,17 +148,27 @@ tukey <- TukeyHSD(model)
 
 so those differences are highly signficant, but is there a confounding effect of TPM?
 ```{r}
-TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") 
-TPMs <- TPMs %>% pivot_longer(cols = K60d:L20w, names_to = "treatment", values_to = "TPM") %>% 
-  group_by(AGI) %>% 
-  summarize(min = min(TPM), max = max(TPM), med = median(TPM)) %>% 
-  mutate(ID = AGI)
-all_taus <- left_join(all_taus, TPMs)
-twoway <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$med)
+rpkm <- lepto %>% pivot_longer(cols = 2:140, names_to = "tissue", values_to = "rpkm") %>% 
+  group_by(ID) %>% 
+  summarize(min = min(rpkm), max = max(rpkm), med = median(rpkm)) 
+all_taus <- left_join(all_taus, rpkm)
+twoway <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$max)
 summary(twoway)
-ggplot(all_taus, aes(x = med, y = exp_profile))+
+ggplot(all_taus, aes(x = max, y = exp_profile))+
   geom_point()+
   lims(x = c(0, 500))+
   geom_smooth(method = "lm")
 ```
 
+the line plot above isn't terribly informative, since the significant interaction term suggests that each group's tau responds differently to changes in TPM. we can visulaize this with an interaction plot:
+```{r}
+ggplot(all_taus, aes(x = max, y = exp_profile, colour = group))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  lims(y = c(0.25, 1))+
+  facet_wrap(~group, scales = "free")+
+  theme(legend.position =  "none")+
+  labs(y = "Tissue specificity index",
+       x = "Max expression level (RPKM)")
+```
+these trendlines aren't terribly different, I'm ok with that
