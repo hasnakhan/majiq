@@ -21,14 +21,23 @@ gc$ID <- gc$AGI
 gc$AGI <- NULL
 gene_exp <- full_join(gene_exp, gc, by = "ID")
 gene_exp[is.na(gene_exp)] <- 0
+gene_exp1 <- gene_exp[1:17000,]
+gene_exp2 <- gene_exp[17001:34240,]
 ```
 
 use a kurtosis filter to remove housekeeping genes, as in Li et al 2012
 ```{r}
-gene_exp <- gene_exp %>% rowwise() %>% 
-  mutate(kurt = kurtosis(c_across(2:140)),
-         ans = as.numeric(anscombe.test(c_across(2:140), alternative = "l")$p.value)) %>% 
+gene_exp1 <- gene_exp1 %>% rowwise() %>% 
+  mutate(kurt = kurtosis(c_across(2:139)),
+         ans = as.numeric(anscombe.test(c_across(2:139), alternative = "l")$p.value)) %>% 
   ungroup()
+
+gene_exp2 <- gene_exp2 %>% rowwise() %>% 
+  mutate(kurt = kurtosis(c_across(2:139)),
+         ans = as.numeric(anscombe.test(c_across(2:139), alternative = "l")$p.value)) %>% 
+  ungroup()
+
+gene_exp <- rbind(gene_exp1, gene_exp2)
 #the alternative setting is the opposite of how I thought it would work, but setting alternative = "l" tests the alternative hypothesis that kurtosis is > 3... which is what we want, it just doesn't seem that way...
 
 #since we've done multiple comparisons, now we need to correct them (FDR)
@@ -39,10 +48,13 @@ lepto <- filter(gene_exp, padj <= 0.005)
 
 nrow(lepto) / nrow(gene_exp)
 #73% of genes meet the leptokurtosis filter (not housekeeping genes). Li et al found that 62% of Arabidopsis genes were leptokurtic using microarray data, but our value is in the right ballpark and similar to values obtained for mammals
+#this goes up to 74% when K20w is excluded, so not a big change
 
 slightly_lepto <- filter(gene_exp, padj <= 0.05)
 nrow(slightly_lepto) / nrow(gene_exp)
 #if we use a standard 0.05 cutoff, we keep 80% of genes, so we aren't losing too many more with the strict cutoff
+
+#write.table(lepto, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/leptokurtic_genes_Klepikova_only.tsv", col.names = T, row.names=F, quote = F, sep = "\t")
 ```
 
 calculate tissue-specificity for the leptokurtic genes. This will distinguish between tissue-specific genes, and those that are expressed in multiple tissue types, and is the metric we'll use for comparing dAS, DE and unregulated genes, as in Rogers et al, 2021, using the tissue-specificity index developed by Yanai et al 2005. 
@@ -162,7 +174,7 @@ twowaymed <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$med)
 summary(twowaymed)
 ```
 
-the interaction between group and gene expression (min, med and max rpkm) is statistically significant, but is it really relevant?
+the interaction between group and gene expression (min and med) is statistically significant, but is it really relevant?
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(taus_long, aes(x = value, y = exp_profile, colour = group))+
@@ -173,7 +185,8 @@ ggplot(taus_long, aes(x = value, y = exp_profile, colour = group))+
   theme(legend.position =  "none")+
   labs(y = "Tissue specificity index",
        x = "Expression level (RPKM)")+
-  theme(axis.text = element_text(size = 8))
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 10))
 dev.off()
 ```
 
@@ -181,7 +194,9 @@ the only one of these that look really bad is min: seems that unregulated genes 
 ```{r}
 ggplot(all_taus, aes(x = group, y = min))+
   geom_boxplot()+
-  lims(y = c(0,1))
+  #lims(y = c(0,1))+
+  labs(x = "",
+       y = 'Minumum expression (RPKM)')
 expcheck <- aov(min ~ group, data = all_taus)
 summary(expcheck)
 TukeyHSD(expcheck)
@@ -213,9 +228,21 @@ exp_model2 <- lm(min_Klep2 ~ med_Anna, data = expression2)
 summary(exp_model2) #R^2 = 0.01
 ggplot(expression2, aes(x = med_Anna, y = min_Klep2))+
   geom_point()+
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm")+
+  labs(x = "RPKM (Anna median)",
+       y = "RPKM (Klepikova minimum")+
+  lims(y=c(0, 250))
 
-#MUCH WEAKER CORR!! ok now we're on to something! So in terms of the cause and effect question, expression in Anna's dataset is very weakly correlated with minimum Klepikova expression, so the reason dAS genes have higher minimum expression is because they have low specificity (and not the other way around)
+exp_model3 <- lm(med_Klep2 ~ med_Anna, data = expression2)
+summary(exp_model3) #R^2 = 0.25
+
+ggplot(expression2, aes(x = med_Anna, y = med_Klep2))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(x = "RPKM (Anna median)",
+       y = "RPKM (Klepikova median)")+
+  lims(y = c(0, 2500))
+#MUCH WEAKER CORR!! ok now we're on to something! So in terms of the cause and effect question, expression in Anna's dataset is very weakly correlated with minimum (and median) Klepikova expression, so the reason dAS genes have higher minimum (and median) expression is because they have low specificity (and not the other way around)
 ```
 
 
