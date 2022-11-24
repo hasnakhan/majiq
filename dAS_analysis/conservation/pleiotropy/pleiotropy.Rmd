@@ -152,23 +152,71 @@ rpkm <- lepto %>% pivot_longer(cols = 2:140, names_to = "tissue", values_to = "r
   group_by(ID) %>% 
   summarize(min = min(rpkm), max = max(rpkm), med = median(rpkm)) 
 all_taus <- left_join(all_taus, rpkm)
-twoway <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$max)
-summary(twoway)
-ggplot(all_taus, aes(x = max, y = exp_profile))+
-  geom_point()+
-  lims(x = c(0, 500))+
-  geom_smooth(method = "lm")
+
+taus_long <- all_taus %>% pivot_longer(min:med, names_to ="stat", values_to = "value")
+twowaymax <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$max)
+summary(twowaymax)
+twowaymin <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$min)
+summary(twowaymin)
+twowaymed <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$med)
+summary(twowaymed)
 ```
 
-the line plot above isn't terribly informative, since the significant interaction term suggests that each group's tau responds differently to changes in TPM. we can visulaize this with an interaction plot:
+the interaction between group and gene expression (min, med and max rpkm) is statistically significant, but is it really relevant?
 ```{r}
-ggplot(all_taus, aes(x = max, y = exp_profile, colour = group))+
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(taus_long, aes(x = value, y = exp_profile, colour = group))+
   geom_point()+
   geom_smooth(method = "lm", se = F, colour = "black")+
   lims(y = c(0.25, 1))+
-  facet_wrap(~group, scales = "free")+
+  facet_wrap(~group*stat, scales = "free")+
   theme(legend.position =  "none")+
   labs(y = "Tissue specificity index",
-       x = "Max expression level (RPKM)")
+       x = "Expression level (RPKM)")+
+  theme(axis.text = element_text(size = 8))
+dev.off()
 ```
-these trendlines aren't terribly different, I'm ok with that
+
+the only one of these that look really bad is min: seems that unregulated genes have a negative correlation between minimum gene expression and tissue specificity (if min expression is low, tissue specificity is high, which makes intuitive sense, it's just much steeper in unregulated genes). So i guess the question is, do dAS genes have different minimum expression levels than DE and unregulated?
+```{r}
+ggplot(all_taus, aes(x = group, y = min))+
+  geom_boxplot()+
+  lims(y = c(0,1))
+expcheck <- aov(min ~ group, data = all_taus)
+summary(expcheck)
+TukeyHSD(expcheck)
+#dAS > DE > unregulated
+#this would imply that unregulated genes have lower minimum expression that's driving their higher tissue specificity... should we be concerned about this? or is it that dAS genes have lower specificity, and so therefore they have higher min expression (ie which is cause vs effect). Do test this, does med expression in Anna's data (shown to be elevated in dAS genes) correlate with min Klepikova expression?
+
+TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") 
+TPMs <- TPMs %>% pivot_longer(cols = K60d:L20w, names_to = "treatment", values_to = "TPM")%>% 
+  group_by(AGI) %>% 
+  summarize(min_Anna = min(TPM), max_Anna = max(TPM), med_Anna = median(TPM)) %>% 
+  mutate(ID = AGI)
+
+expression <- gene_exp %>% pivot_longer(cols = 2:140, names_to = "tissue", values_to = "rpkm") %>% 
+  group_by(ID) %>% 
+  summarize(min_Klep = min(rpkm), max_Klep = max(rpkm), med_Klep = median(rpkm)) 
+expression <- full_join(expression, TPMs)
+exp_model <- lm(min_Klep ~ med_Anna, data = expression)
+summary(exp_model) #R^2 = 0.76
+ggplot(expression, aes(x = med_Anna, y = min_Klep))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+#what if we remove Anna's data from Klepikova?
+expression2 <- gene_exp %>% pivot_longer(cols = 2:139, names_to = "tissue", values_to = "rpkm") %>% 
+  group_by(ID) %>% 
+  summarize(min_Klep2 = min(rpkm), max_Klep2 = max(rpkm), med_Klep2 = median(rpkm)) 
+expression2 <- full_join(expression2, TPMs)
+exp_model2 <- lm(min_Klep2 ~ med_Anna, data = expression2)
+summary(exp_model2) #R^2 = 0.01
+ggplot(expression2, aes(x = med_Anna, y = min_Klep2))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+#MUCH WEAKER CORR!! ok now we're on to something! So in terms of the cause and effect question, expression in Anna's dataset is very weakly correlated with minimum Klepikova expression, so the reason dAS genes have higher minimum expression is because they have low specificity (and not the other way around)
+```
+
+
+
