@@ -9,23 +9,30 @@ pleiotropy analysis: has dAS evolved to regulate the expression of pleiotropic g
 library(tidyverse)
 library(moments)
 library(readxl)
+library(ggsignif)
+library(biomartr)
+library(GO.db)
 ```
 
+don't run
 ```{r}
 gene_exp <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/Klepikova.tsv", delim = "\t")
 
 #add Anna's GC data (K20w) in RPKM to the Klepikova atlas, and convert all NAs to 0
 #i'm somehwat concerned about the low RPKMs in the GC data, i might repeat the analysis later, excluding these values
-gc <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/AVERAGE_rpkm.csv") %>% select(AGI, K20w)
-gc$ID <- gc$AGI
-gc$AGI <- NULL
-gene_exp <- full_join(gene_exp, gc, by = "ID")
+#gc <- read_csv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/AVERAGE_rpkm.csv") %>% select(AGI, K20w)
+#gc$ID <- gc$AGI
+#gc$AGI <- NULL
+#gene_exp <- full_join(gene_exp, gc, by = "ID")
+
+#ended up not including Anna's K20w samples, due to potential confounding effects (know that dAS genes have high expression in Anna's data, so this data was excluded to prevent an effect of gene exp on tissue specificity)
 gene_exp[is.na(gene_exp)] <- 0
 gene_exp1 <- gene_exp[1:17000,]
 gene_exp2 <- gene_exp[17001:34240,]
 ```
 
 use a kurtosis filter to remove housekeeping genes, as in Li et al 2012
+don't run this, skip to next chunk
 ```{r}
 gene_exp1 <- gene_exp1 %>% rowwise() %>% 
   mutate(kurt = kurtosis(c_across(2:139)),
@@ -57,21 +64,30 @@ nrow(slightly_lepto) / nrow(gene_exp)
 #write.table(lepto, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/leptokurtic_genes_Klepikova_only.tsv", col.names = T, row.names=F, quote = F, sep = "\t")
 ```
 
+```{r}
+lepto <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/leptokurtic_genes_Klepikova_only.tsv", delim = "\t")
+
+gene_exp <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/Klepikova.tsv", delim = "\t")
+```
+
 calculate tissue-specificity for the leptokurtic genes. This will distinguish between tissue-specific genes, and those that are expressed in multiple tissue types, and is the metric we'll use for comparing dAS, DE and unregulated genes, as in Rogers et al, 2021, using the tissue-specificity index developed by Yanai et al 2005. 
 ```{r}
 tau <- function(gene){
-  exp <- filter(gene_exp, ID == gene)
-  raw_exp <- unlist(exp[2:140])
+  exp <- filter(lepto, ID == gene)
+  raw_exp <- unlist(exp[2:139])
   max <- max(raw_exp)
   norm_exp <- raw_exp/max
-  component <- (1 - norm_exp)/138
+  component <- (1 - norm_exp)/137
   tau <- sum(component, na.rm = T)
 }
 exp_profile <- sapply(lepto$ID, tau)
 exp_profile <- as.data.frame(exp_profile)
 exp_profile$ID <- row.names(exp_profile)
+#kurtosis filter seems to have worked as minimum tau is 0.37, so housekeeping genes seem to have been well removed
 
-#kurtosis filter seems to have worked as minimum tau is 0.35, so housekeeping genes seem to have been well removed
+#write.table(exp_profile, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/exp_profile.tsv", sep = "\t", quote = F, row.names = F)
+
+exp_profile <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/exp_profile.tsv")
 ```
 
 now compare tau values (gene expression breadth) of non-housekeeping dAS, DE, and unregulated genes
@@ -83,79 +99,50 @@ all_dasg <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/cl
 all_dasg <- as.data.frame(unique(all_dasg$GeneID))
 colnames(all_dasg) <- "ID"
 
-#DEGs
-deg_dw <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "dw")
+all_degs <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/all_degs.tsv")
 
-#K20dK20w
-deg_k20dk20w <- as.data.frame(c(deg_dw$K20dK20w[2:length(deg_dw$K20dK20w)], deg_dw$...8[2:length(deg_dw$...8)]))
-deg_k20dk20w <- na.omit(deg_k20dk20w)
-deg_k20dk20w$comp <- c("K20dK20w")
-colnames(deg_k20dk20w) <- c("geneid", "comp")
+all_unreg <- filter(gene_exp, !ID %in% all_dasg$ID & !ID %in% all_degs$ID) %>% 
+  dplyr::select(ID)
 
-#K40dK40w
-deg_k40dk40w <- as.data.frame(c(deg_dw$K40dK40w[2:length(deg_dw$K40dK40w)], deg_dw$...5[2:length(deg_dw$...5)]))
-deg_k40dk40w <- na.omit(deg_k40dk40w)
-deg_k40dk40w$comp <- c("K40dK40w")
-colnames(deg_k40dk40w) <- c("geneid", "comp")
-
-#K60dK60w
-deg_k60dk60w <- as.data.frame(c(deg_dw$K60dK60w[2:length(deg_dw$K60dK60w)], deg_dw$...2[2:length(deg_dw$...2)]))
-deg_k60dk60w <- na.omit(deg_k60dk60w)
-deg_k60dk60w$comp <- c("K60dK60w")
-colnames(deg_k60dk60w) <- c("geneid", "comp")
-
-#L20dL20w
-deg_l20dl20w <- as.data.frame(c(deg_dw$L20dL20w[2:length(deg_dw$L20dL20w)], deg_dw$...17[2:length(deg_dw$...17)]))
-deg_l20dl20w <- na.omit(deg_l20dl20w)
-deg_l20dl20w$comp <- c("L20dL20w")
-colnames(deg_l20dl20w) <- c("geneid", "comp")
-
-#L40dL40w
-deg_l40dl40w <- as.data.frame(c(deg_dw$L40dL40w[2:length(deg_dw$L40dL40w)], deg_dw$...14[2:length(deg_dw$...14)]))
-deg_l40dl40w <- na.omit(deg_l40dl40w)
-deg_l40dl40w$comp <- c("L40dL40w")
-colnames(deg_l40dl40w) <- c("geneid", "comp")
-
-#L60dL60w
-deg_l60dl60w <- as.data.frame(c(deg_dw$L60dL60w[2:length(deg_dw$L60dL60w)], deg_dw$...11[2:length(deg_dw$...11)]))
-deg_l60dl60w <- na.omit(deg_l60dl60w)
-deg_l60dl60w$comp <- c("L60dL60w")
-colnames(deg_l60dl60w) <- c("geneid", "comp")
-
-#KwLw
-deg_kl <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/Anna_DEGs.xlsx", sheet = "kl")
-deg_kwlw <- as.data.frame(c(deg_kl$`up in k(w)`[2:length(deg_kl$`up in k(w)`)], deg_kl$`down in k (w)`[2:length(deg_kl$`down in k (w)`)]))
-deg_kwlw <- na.omit(deg_kwlw)
-deg_kwlw$comp <- c("KwLw")
-colnames(deg_kwlw) <- c("geneid", "comp")
-
-all_degs <- rbind(deg_k20dk20w, deg_k40dk40w, deg_k60dk60w, deg_l20dl20w, deg_l40dl40w, deg_l60dl60w, deg_kwlw) %>% select(geneid)
-all_degs <- as.data.frame(unique(all_degs$geneid))
-colnames(all_degs) <- "ID"
-
-all_unreg <- filter(lepto, !ID %in% all_dasg$ID & !ID %in% all_degs$ID) %>% 
-  select(ID)
 ```
 
 plot tissue specificity of dAS, DE and unregulated genes
 ```{r}
 all_dasg <- left_join(all_dasg, exp_profile) %>% 
-  mutate(group = "Differentially spliced")
+  mutate(group = "dAS")
 all_degs <- left_join(all_degs, exp_profile) %>% 
-  mutate(group = "Differentially expressed")
+  mutate(group = "DE")
 all_unreg <- left_join(all_unreg, exp_profile) %>% 
-  mutate(group = "Unregulated")
+  mutate(group = "unreg")
 all_taus <- rbind(all_dasg, all_degs, all_unreg) %>% 
-  filter(exp_profile > 0) #filter out housekeeping genes, where exp_profile is na
+  filter(exp_profile > 0) %>% 
+  #filter out housekeeping genes, where exp_profile is na
+  mutate(group = factor(group, levels = c("Unregulated",  "DE", "dAS"))) %>%
+  group_by(group) %>%
+  mutate(outlier = exp_profile < quantile(exp_profile, 0.25) - IQR(exp_profile) * 1.5) %>%
+  ungroup
 
-ggplot(all_taus, aes(x = group, y = exp_profile))+
-  geom_boxplot()+
-  labs(y = "Tissue specificity index",
-       x = "")
+all_taus %>% group_by(group) %>% 
+  summarize (n=n())
+#244 dAS, 6380 DE, 18977 unregulated genes pass the leptokurtosis filter
+#this represents 60% of dAS genes, 71% of DE genes and 75% of unregulated genes
 
 model <- aov(all_taus$exp_profile ~ all_taus$group)
 summary(model)
 tukey <- TukeyHSD(model)
+```
+
+```{r}
+ggplot(all_taus, aes(x = group, y = exp_profile, fill = group))+
+  geom_boxplot(alpha = 0.6, outlier.shape = NA)+
+  geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
+  labs(y = "Tissue specificity index",
+       x = "")+
+  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  scale_x_discrete(labels = c("Unregulated" = "Unregulated genes\nn = 18 977", "dAS" ="dAS genes\nn = 244", "DE" = "DE genes\n n =6380"))+
+  geom_signif(y_position = c(1.05, 1.1, 1.15), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
 ```
 
 so those differences are highly signficant, but is there a confounding effect of TPM?
@@ -245,5 +232,128 @@ ggplot(expression2, aes(x = med_Anna, y = med_Klep2))+
 #MUCH WEAKER CORR!! ok now we're on to something! So in terms of the cause and effect question, expression in Anna's dataset is very weakly correlated with minimum (and median) Klepikova expression, so the reason dAS genes have higher minimum (and median) expression is because they have low specificity (and not the other way around)
 ```
 
+all in all, the tissue specificity stuff is convincing. there are other proxies of pleiotropy, including go biological processes and network connectivity. let's try the go stuff:
+```{r}
+#no longer have a kurtosis filter, so use all genes
+#get go terms from ensembl plants via biomart
+go_dasg <- getGO(organism = "Arabidopsis thaliana", 
+                genes    = all_dasg$ID,
+                filters  = "ensembl_gene_id")
+go_dasg$ont <- sapply(go_dasg$goslim_goa_accession, Ontology)
+go_dasg <- go_dasg %>% group_by(ensembl_gene_id, ont) %>% 
+  summarise(count = n()) %>% 
+  mutate(group = c("dAS"))
 
+go_deg <- getGO(organism = "Arabidopsis thaliana", 
+                genes    = all_degs$ID,
+                filters  = "ensembl_gene_id")
+go_deg$ont <- sapply(go_deg$goslim_goa_accession, Ontology)
+go_deg <- go_deg %>% group_by(ensembl_gene_id, ont) %>% 
+  summarise(count = n()) %>% 
+  mutate(group = c("DE"))
 
+go_unreg <- getGO(organism = "Arabidopsis thaliana", 
+                genes    = all_unreg$ID,
+                filters  = "ensembl_gene_id")
+go_unreg$ont <- sapply(go_unreg$goslim_goa_accession, Ontology)
+go_unreg <- go_unreg %>% group_by(ensembl_gene_id, ont) %>% 
+  summarise(count = n()) %>% 
+  mutate(group = c("unreg"))
+
+all_go <- rbind(go_dasg, go_deg, go_unreg)
+#what to do about genes that don't have a go term in each ontology? Need to fill these in with zeroes somehow... 
+
+all_go <- all_go %>% pivot_wider(names_from = ont, values_from = count) 
+all_go[is.na(all_go)] <- 0
+
+#what about genes with no go terms? add 0 for each ontology for these genes
+#why doesn't biomart have annotations for these? some seem obscure, but others are annotated in tair...
+no_go_dAS <- filter(all_dasg, !ID %in% go_dasg$ensembl_gene_id)
+no_go_de <- filter(all_degs, !ID %in% go_deg$ensembl_gene_id)
+no_go_unreg <- filter(all_unreg, !ID %in% go_unreg$ensembl_gene_id)
+no_go <- rbind(no_go_dAS, no_go_de, no_go_unreg)
+no_go <- no_go[,-2]
+no_go$BP <- c(0)
+no_go$CC <- c(0)
+no_go$MF <- c(0)
+colnames(no_go) <- c("ensembl_gene_id", "group", "BP", "CC", "MF")
+
+all_go <- rbind(all_go, no_go)
+
+all_go %>% group_by(group) %>% 
+  summarize (n=n())
+
+all_go <- pivot_longer(all_go, BP:MF, names_to = "ont", values_to = "count")
+
+bp <- filter(all_go, ont == "BP") %>% 
+  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+  group_by(group) %>%
+  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  ungroup
+
+model_bp <- aov(bp$count ~ bp$group)
+summary(model_bp)
+tukey_bp <- TukeyHSD(model_bp)
+tukey_bp
+
+cc <- filter(all_go, ont == "CC") %>% 
+  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+  group_by(group) %>%
+  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  ungroup
+
+model_cc <- aov(cc$count ~ cc$group)
+summary(model_cc)
+tukey_cc <- TukeyHSD(model_cc)
+tukey_cc
+
+mf <- filter(all_go, ont == "MF") %>% 
+  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+  group_by(group) %>%
+  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  ungroup
+
+model_mf <- aov(mf$count ~ mf$group)
+summary(model_mf)
+tukey_mf <- TukeyHSD(model_mf)
+tukey_mf
+```
+
+```{r}
+ggplot(bp, aes(x = group, y = count, fill = group))+
+  geom_boxplot(alpha = 0.6, outlier.shape = NA)+
+  geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
+  labs(y = "GO biological processes per gene",
+       x = "")+
+  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  geom_signif(y_position = c(29, 30.5, 32), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "**", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+```
+
+```{r}
+ggplot(cc, aes(x = group, y = count, fill = group))+
+  geom_boxplot(alpha = 0.6, outlier.shape = NA)+
+  geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
+  labs(y = "GO cellular components per gene",
+       x = "")+
+  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  geom_signif(y_position = c(17, 18.25, 19.5), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+```
+
+```{r}
+ggplot(mf, aes(x = group, y = count, fill = group))+
+  geom_boxplot(alpha = 0.6, outlier.shape = NA)+
+  geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
+  labs(y = "GO molecular functions per gene",
+       x = "")+
+  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  geom_signif(y_position = c(12.5, 13.25, 14), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "NS", "***"), colour = "grey10", tip_length = 0.01, vjust = c(0.1))
+```
