@@ -6,12 +6,13 @@ output: html_document
 pleiotropy analysis: has dAS evolved to regulate the expression of pleiotropic genes to minimize off-target effects? It's been shown that differential expression is constrained in pleiotropic genes so we're asking, has dAS evolved to fill that role?
 
 ```{r}
+#library(biomartr)
+#library(GO.db)
 library(tidyverse)
 library(moments)
 library(readxl)
 library(ggsignif)
-library(biomartr)
-library(GO.db)
+library(ggridges)
 ```
 
 don't run
@@ -71,6 +72,8 @@ gene_exp <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/
 ```
 
 calculate tissue-specificity for the leptokurtic genes. This will distinguish between tissue-specific genes, and those that are expressed in multiple tissue types, and is the metric we'll use for comparing dAS, DE and unregulated genes, as in Rogers et al, 2021, using the tissue-specificity index developed by Yanai et al 2005. 
+
+don't run
 ```{r}
 tau <- function(gene){
   exp <- filter(lepto, ID == gene)
@@ -86,7 +89,9 @@ exp_profile$ID <- row.names(exp_profile)
 #kurtosis filter seems to have worked as minimum tau is 0.37, so housekeeping genes seem to have been well removed
 
 #write.table(exp_profile, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/exp_profile.tsv", sep = "\t", quote = F, row.names = F)
+```
 
+```{r}
 exp_profile <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/exp_profile.tsv")
 ```
 
@@ -99,10 +104,14 @@ all_dasg <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/cl
 all_dasg <- as.data.frame(unique(all_dasg$GeneID))
 colnames(all_dasg) <- "ID"
 
+#DE
 all_degs <- read_tsv("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/dAS_DEG/all_degs.tsv")
 
-all_unreg <- filter(gene_exp, !ID %in% all_dasg$ID & !ID %in% all_degs$ID) %>% 
-  dplyr::select(ID)
+#unreg
+TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM")
+all_unreg <- filter(TPMs, !AGI %in% all_dasg$ID & !AGI %in% all_degs$ID) %>% 
+  select(AGI)
+colnames(all_unreg) <- "ID"
 
 ```
 
@@ -117,19 +126,20 @@ all_unreg <- left_join(all_unreg, exp_profile) %>%
 all_taus <- rbind(all_dasg, all_degs, all_unreg) %>% 
   filter(exp_profile > 0) %>% 
   #filter out housekeeping genes, where exp_profile is na
-  mutate(group = factor(group, levels = c("Unregulated",  "DE", "dAS"))) %>%
+  mutate(group = factor(group, levels = c("DE",  "dAS", "unreg"))) %>%
   group_by(group) %>%
   mutate(outlier = exp_profile < quantile(exp_profile, 0.25) - IQR(exp_profile) * 1.5) %>%
   ungroup
 
 all_taus %>% group_by(group) %>% 
   summarize (n=n())
-#244 dAS, 6380 DE, 18977 unregulated genes pass the leptokurtosis filter
-#this represents 60% of dAS genes, 71% of DE genes and 75% of unregulated genes
+#244 dAS, 6380 DE, 11 921 unregulated genes pass the leptokurtosis filter
+#this represents 60% of dAS genes, 71% of DE genes and 65% of unregulated genes
 
 model <- aov(all_taus$exp_profile ~ all_taus$group)
 summary(model)
 tukey <- TukeyHSD(model)
+tukey
 ```
 
 ```{r}
@@ -138,14 +148,31 @@ ggplot(all_taus, aes(x = group, y = exp_profile, fill = group))+
   geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
   labs(y = "Tissue specificity index",
        x = "")+
-  scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
   theme_minimal()+
   theme(legend.position = "none")+
-  scale_x_discrete(labels = c("Unregulated" = "Unregulated genes\nn = 18 977", "dAS" ="dAS genes\nn = 244", "DE" = "DE genes\n n =6380"))+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 11 921", "dAS" ="dAS genes\nn = 244", "DE" = "DE genes\n n = 6380"))+
   geom_signif(y_position = c(1.05, 1.1, 1.15), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
 ```
 
-so those differences are highly signficant, but is there a confounding effect of TPM?
+try a ridgeline plot for clarity?
+```{r}
+ggplot(all_taus, aes(x = exp_profile, y = group, fill = group, colour= group))+
+  geom_density_ridges(scale = .95, alpha = 0.6)+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "Tissue specificity index",
+       y = "")+
+  scale_y_discrete(labels = c("DE" = "DE genes\nn = 6380", "dAS" ="dAS genes\nn = 244", "unreg" = "Unregulated genes\nn = 11 921"))+
+geom_signif(y_position = c(1.1, 1.15, 1.2), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+```
+
+
+
+so those differences are highly significant, but is there a confounding effect of TPM?
 ```{r}
 rpkm <- lepto %>% pivot_longer(cols = 2:140, names_to = "tissue", values_to = "rpkm") %>% 
   group_by(ID) %>% 
@@ -161,7 +188,7 @@ twowaymed <- aov(all_taus$exp_profile ~ all_taus$group * all_taus$med)
 summary(twowaymed)
 ```
 
-the interaction between group and gene expression (min and med) is statistically significant, but is it really relevant?
+the interaction between group and gene expression (min and med and max) is statistically significant, but is it really relevant?
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(taus_long, aes(x = value, y = exp_profile, colour = group))+
@@ -190,12 +217,12 @@ TukeyHSD(expcheck)
 #dAS > DE > unregulated
 #this would imply that unregulated genes have lower minimum expression that's driving their higher tissue specificity... should we be concerned about this? or is it that dAS genes have lower specificity, and so therefore they have higher min expression (ie which is cause vs effect). Do test this, does med expression in Anna's data (shown to be elevated in dAS genes) correlate with min Klepikova expression?
 
-TPMs <- read_excel("C:/Users/hasna/Documents/MSc_project/20210920_rawseqdata/AVERAGE_TPM.xlsx", sheet = "AVERAGE_TPM") 
 TPMs <- TPMs %>% pivot_longer(cols = K60d:L20w, names_to = "treatment", values_to = "TPM")%>% 
   group_by(AGI) %>% 
   summarize(min_Anna = min(TPM), max_Anna = max(TPM), med_Anna = median(TPM)) %>% 
   mutate(ID = AGI)
 
+#this only works if Anna's K20w was initially added to klepikova dataset, which we aren't doing due to the high R^2 if we do
 expression <- gene_exp %>% pivot_longer(cols = 2:140, names_to = "tissue", values_to = "rpkm") %>% 
   group_by(ID) %>% 
   summarize(min_Klep = min(rpkm), max_Klep = max(rpkm), med_Klep = median(rpkm)) 
@@ -217,7 +244,7 @@ ggplot(expression2, aes(x = med_Anna, y = min_Klep2))+
   geom_point()+
   geom_smooth(method = "lm")+
   labs(x = "RPKM (Anna median)",
-       y = "RPKM (Klepikova minimum")+
+       y = "RPKM (Klepikova minimum)")+
   lims(y=c(0, 250))
 
 exp_model3 <- lm(med_Klep2 ~ med_Anna, data = expression2)
@@ -233,94 +260,98 @@ ggplot(expression2, aes(x = med_Anna, y = med_Klep2))+
 ```
 
 all in all, the tissue specificity stuff is convincing. there are other proxies of pleiotropy, including go biological processes and network connectivity. let's try the go stuff:
+
 ```{r}
-#no longer have a kurtosis filter, so use all genes
-#get go terms from ensembl plants via biomart
-go_dasg <- getGO(organism = "Arabidopsis thaliana", 
-                genes    = all_dasg$ID,
-                filters  = "ensembl_gene_id")
-go_dasg$ont <- sapply(go_dasg$goslim_goa_accession, Ontology)
-go_dasg <- go_dasg %>% group_by(ensembl_gene_id, ont) %>% 
-  summarise(count = n()) %>% 
-  mutate(group = c("dAS"))
+#GO annotations retrieved Dec 5, 2022
+tair_go <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/gene_association.tair", delim = "\t", skip = 5, col_names = F)
+tair_go <- tair_go %>% filter(X1 == "AGI_LocusCode") %>% 
+  select(X2, X5, X7, X9)
+colnames(tair_go) <- c("AGI", "term", "evidence", "ontology")
+head(tair_go)
 
-go_deg <- getGO(organism = "Arabidopsis thaliana", 
-                genes    = all_degs$ID,
-                filters  = "ensembl_gene_id")
-go_deg$ont <- sapply(go_deg$goslim_goa_accession, Ontology)
-go_deg <- go_deg %>% group_by(ensembl_gene_id, ont) %>% 
-  summarise(count = n()) %>% 
-  mutate(group = c("DE"))
+go_dASG <- tair_go %>% filter(AGI %in% all_dasg$ID) %>% 
+  group_by(AGI, ontology) %>% 
+  summarize (num_terms = n()) %>% 
+  mutate(group = "dAS")
 
-go_unreg <- getGO(organism = "Arabidopsis thaliana", 
-                genes    = all_unreg$ID,
-                filters  = "ensembl_gene_id")
-go_unreg$ont <- sapply(go_unreg$goslim_goa_accession, Ontology)
-go_unreg <- go_unreg %>% group_by(ensembl_gene_id, ont) %>% 
-  summarise(count = n()) %>% 
-  mutate(group = c("unreg"))
+go_DEG <- tair_go %>% filter(AGI %in% all_degs$ID) %>% 
+  group_by(AGI, ontology) %>% 
+  summarize (num_terms = n()) %>% 
+  mutate(group = "DE")
 
-all_go <- rbind(go_dasg, go_deg, go_unreg)
-#what to do about genes that don't have a go term in each ontology? Need to fill these in with zeroes somehow... 
+go_unreg <- tair_go %>% filter(AGI %in% all_unreg$ID) %>% 
+  group_by(AGI, ontology) %>% 
+  summarize (num_terms = n()) %>% 
+  mutate(group = "unreg")
 
-all_go <- all_go %>% pivot_wider(names_from = ont, values_from = count) 
-all_go[is.na(all_go)] <- 0
+all_go <- rbind(go_dASG, go_DEG, go_unreg)
 
-#what about genes with no go terms? add 0 for each ontology for these genes
-#why doesn't biomart have annotations for these? some seem obscure, but others are annotated in tair...
-no_go_dAS <- filter(all_dasg, !ID %in% go_dasg$ensembl_gene_id)
-no_go_de <- filter(all_degs, !ID %in% go_deg$ensembl_gene_id)
-no_go_unreg <- filter(all_unreg, !ID %in% go_unreg$ensembl_gene_id)
-no_go <- rbind(no_go_dAS, no_go_de, no_go_unreg)
-no_go <- no_go[,-2]
-no_go$BP <- c(0)
-no_go$CC <- c(0)
-no_go$MF <- c(0)
-colnames(no_go) <- c("ensembl_gene_id", "group", "BP", "CC", "MF")
-
-all_go <- rbind(all_go, no_go)
-
-all_go %>% group_by(group) %>% 
+all_go %>% pivot_wider(names_from = ontology, values_from = num_terms) %>% 
+group_by(group) %>% 
   summarize (n=n())
+#all DE and dAS genes have tair annotations: dAS = 406, DE = 8989, unreg = 18 246 (so only 3 genes missing)
 
-all_go <- pivot_longer(all_go, BP:MF, names_to = "ont", values_to = "count")
+#filter(all_unreg, !ID %in% go_unreg$AGI)
+#AT1G51020 and AT2G22942 have no go terms on tair as of Dec 6 2022, and will be excluded, AT1G37260 has go terms: 3 BPs, no CCs or MFs, so this will be added to the dataset 
 
-bp <- filter(all_go, ont == "BP") %>% 
-  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+AT1G37260 <- data.frame("AGI" = "AT1G37260",
+                        "ontology" = "P",
+                        "num_terms" = 3,
+                        "group" = "unreg")
+all_go <- rbind(all_go, AT1G37260)
+
+bp <- filter(all_go, ontology == "P") %>% 
+  mutate(group = factor(group, levels = c("DE",  "dAS", "unreg"))) %>%
   group_by(group) %>%
-  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  mutate(outlier = num_terms > quantile(num_terms, 0.75) + IQR(num_terms) * 1.5 | num_terms < quantile(num_terms, 0.25) - IQR(num_terms) * 1.5 ) %>%
   ungroup
 
-model_bp <- aov(bp$count ~ bp$group)
+model_bp <- aov(bp$num_terms ~ bp$group)
 summary(model_bp)
 tukey_bp <- TukeyHSD(model_bp)
 tukey_bp
 
-cc <- filter(all_go, ont == "CC") %>% 
-  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+cc <- filter(all_go, ontology == "C") %>% 
+  mutate(group = factor(group, levels = c("DE",  "dAS", "unreg"))) %>%
   group_by(group) %>%
-  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  mutate(outlier = num_terms > quantile(num_terms, 0.75) + IQR(num_terms) * 1.5 | num_terms < quantile(num_terms, 0.25) - IQR(num_terms) * 1.5 ) %>%
   ungroup
 
-model_cc <- aov(cc$count ~ cc$group)
+model_cc <- aov(cc$num_terms ~ cc$group)
 summary(model_cc)
 tukey_cc <- TukeyHSD(model_cc)
 tukey_cc
 
-mf <- filter(all_go, ont == "MF") %>% 
-  mutate(group = factor(group, levels = c("unreg",  "DE", "dAS"))) %>%
+mf <- filter(all_go, ontology == "F") %>% 
+  mutate(group = factor(group, levels = c("DE",  "dAS", "unreg"))) %>%
   group_by(group) %>%
-  mutate(outlier = count > quantile(count, 0.75) + IQR(count) * 1.5 | count < quantile(count, 0.25) - IQR(count) * 1.5 ) %>%
+  mutate(outlier = num_terms > quantile(num_terms, 0.75) + IQR(num_terms) * 1.5 | num_terms < quantile(num_terms, 0.25) - IQR(num_terms) * 1.5 ) %>%
   ungroup
 
-model_mf <- aov(mf$count ~ mf$group)
+model_mf <- aov(mf$num_terms ~ mf$group)
 summary(model_mf)
 tukey_mf <- TukeyHSD(model_mf)
 tukey_mf
 ```
 
+
 ```{r}
-ggplot(bp, aes(x = group, y = count, fill = group))+
+ggplot(bp, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+  geom_density_ridges(scale = .95, alpha = 0.6)+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "log10 (Number of GO biological processes per gene)",
+       y = "")+
+  scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("NS", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
+```
+
+bp boxplot
+```{r}
+ggplot(bp, aes(x = group, y = num_terms, fill = group))+
   geom_boxplot(alpha = 0.6, outlier.shape = NA)+
   geom_point(data = function(x) dplyr::filter_(x, ~ outlier), position = position_jitter(width = 0.3, height = 0), alpha = 0.5, size = 0.5)+
   labs(y = "GO biological processes per gene",
@@ -328,10 +359,26 @@ ggplot(bp, aes(x = group, y = count, fill = group))+
   scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
   theme_minimal()+
   theme(legend.position = "none")+
-  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
-  geom_signif(y_position = c(29, 30.5, 32), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "**", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 18 247", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  geom_signif(y_position = c(64.5, 66.5, 70.5), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "NS", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
 ```
 
+```{r}
+ggplot(cc, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+  geom_density_ridges(scale = .95, alpha = 0.6)+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "log10 (Number of GO cellular components per gene)",
+       y = "")+
+  scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
+```
+
+
+cc boxplot
 ```{r}
 ggplot(cc, aes(x = group, y = count, fill = group))+
   geom_boxplot(alpha = 0.6, outlier.shape = NA)+
@@ -341,10 +388,25 @@ ggplot(cc, aes(x = group, y = count, fill = group))+
   scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
   theme_minimal()+
   theme(legend.position = "none")+
-  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 18 247", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
   geom_signif(y_position = c(17, 18.25, 19.5), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
 ```
 
+```{r}
+ggplot(mf, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+  geom_density_ridges(scale = .95, alpha = 0.6)+
+  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_text(colour = "grey10"))+
+  labs(x = "log10 (Number of GO molecular functions per gene)",
+       y = "")+
+  scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+geom_signif(y_position = c(2.32, 2.5, 2.7), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("NS", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
+```
+
+mf boxplot
 ```{r}
 ggplot(mf, aes(x = group, y = count, fill = group))+
   geom_boxplot(alpha = 0.6, outlier.shape = NA)+
@@ -354,6 +416,89 @@ ggplot(mf, aes(x = group, y = count, fill = group))+
   scale_fill_manual(values = c("orchid", "turquoise", "limegreen"))+
   theme_minimal()+
   theme(legend.position = "none")+
-  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 25 153", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
+  scale_x_discrete(labels = c("unreg" = "Unregulated genes\nn = 18 247", "dAS" ="dAS genes\nn = 406", "DE" = "DE genes\n n =8989"))+
   geom_signif(y_position = c(12.5, 13.25, 14), xmin = c(0.6, 1.6, 0.6), xmax = c(2.4, 3.4, 3.4), annotations = c("***", "NS", "***"), colour = "grey10", tip_length = 0.01, vjust = c(0.1))
 ```
+
+interactions with gene expression?
+```{r}
+TPM_long <- TPMs %>% select (1:4) %>% 
+  pivot_longer(min_Anna:med_Anna, names_to = "stat", values_to = "value")
+bp_exp <- left_join(bp, TPMs)
+cc_exp <- left_join(cc, TPMs)
+mf_exp <- left_join(mf, TPMs)
+
+bptwowaymax <- aov(bp_exp$num_terms ~ bp_exp$group * bp_exp$max_Anna)
+summary(bptwowaymax) #int 2e-16
+bptwowaymin <- aov(bp_exp$num_terms ~ bp_exp$group * bp_exp$min_Anna)
+summary(bptwowaymin) #int 2e-16
+bptwowaymed <- aov(bp_exp$num_terms ~ bp_exp$group * bp_exp$med_Anna)
+summary(bptwowaymed) #int 2e-16
+
+cctwowaymax <- aov(cc_exp$num_terms ~ cc_exp$group * cc_exp$max_Anna)
+summary(cctwowaymax) #int 2e-16
+cctwowaymin <- aov(cc_exp$num_terms ~ cc_exp$group * cc_exp$min_Anna)
+summary(cctwowaymin) #int 2e-16
+cctwowaymed <- aov(cc_exp$num_terms ~ cc_exp$group * cc_exp$med_Anna)
+summary(cctwowaymed) #int 2e-16
+
+mftwowaymax <- aov(mf_exp$num_terms ~ mf_exp$group * mf_exp$max_Anna)
+summary(mftwowaymax) #int 2e-16
+mftwowaymin <- aov(mf_exp$num_terms ~ mf_exp$group * mf_exp$min_Anna)
+summary(mftwowaymin) #int 2e-16
+mftwowaymed <- aov(mf_exp$num_terms ~ mf_exp$group * mf_exp$med_Anna)
+summary(mftwowaymed) #int 2e-16
+
+bp_exp_long <- bp_exp %>% pivot_longer(min_Anna:med_Anna, names_to = "stat", values_to = "value")
+
+cc_exp_long <- cc_exp %>% pivot_longer(min_Anna:med_Anna, names_to = "stat", values_to = "value")
+
+mf_exp_long <- mf_exp %>% pivot_longer(min_Anna:med_Anna, names_to = "stat", values_to = "value")
+```
+
+all the interactions are highly significant, but what do they look like?
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(bp_exp_long, aes(x = value, y = num_terms, colour = group))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  #lims(y = c(0.25, 1))+
+  facet_wrap(~group*stat, scales = "free")+
+  theme(legend.position =  "none")+
+  labs(y = "GO biological processes per gene",
+       x = "Expression level (RPKM)")+
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 10))
+dev.off()
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(cc_exp_long, aes(x = value, y = num_terms, colour = group))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  #lims(y = c(0.25, 1))+
+  facet_wrap(~group*stat, scales = "free")+
+  theme(legend.position =  "none")+
+  labs(y = "GO cellular components per gene",
+       x = "Expression level (RPKM)")+
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 10))
+dev.off()
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(mf_exp_long, aes(x = value, y = num_terms, colour = group))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  #lims(y = c(0.25, 1))+
+  facet_wrap(~group*stat, scales = "free")+
+  theme(legend.position =  "none")+
+  labs(y = "GO molecular functions per gene",
+       x = "Expression level (RPKM)")+
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 10))
+dev.off()
+```
+
