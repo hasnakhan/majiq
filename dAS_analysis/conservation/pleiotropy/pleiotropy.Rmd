@@ -6,8 +6,6 @@ output: html_document
 pleiotropy analysis: has dAS evolved to regulate the expression of pleiotropic genes to minimize off-target effects? It's been shown that differential expression is constrained in pleiotropic genes so we're asking, has dAS evolved to fill that role?
 
 ```{r}
-#library(biomartr)
-#library(GO.db)
 library(tidyverse)
 library(moments)
 library(readxl)
@@ -115,7 +113,7 @@ colnames(all_unreg) <- "ID"
 
 ```
 
-plot tissue specificity of dAS, DE and unregulated genes
+model tissue specificity of dAS, DE and unregulated genes
 ```{r}
 all_dasg <- left_join(all_dasg, exp_profile) %>% 
   mutate(group = "dAS")
@@ -142,6 +140,7 @@ tukey <- TukeyHSD(model)
 tukey
 ```
 
+boxplot tissue specificity, with jittered outliers
 ```{r}
 ggplot(all_taus, aes(x = group, y = exp_profile, fill = group))+
   geom_boxplot(alpha = 0.6, outlier.shape = NA)+
@@ -169,8 +168,6 @@ ggplot(all_taus, aes(x = exp_profile, y = group, fill = group, colour= group))+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 6380", "dAS" ="dAS genes\nn = 244", "unreg" = "Unregulated genes\nn = 11 921"))+
 geom_signif(y_position = c(1.1, 1.15, 1.2), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
 ```
-
-
 
 so those differences are highly significant, but is there a confounding effect of TPM?
 ```{r}
@@ -267,7 +264,7 @@ tair_go <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/c
 tair_go <- tair_go %>% filter(X1 == "AGI_LocusCode") %>% 
   select(X2, X5, X7, X9)
 colnames(tair_go) <- c("AGI", "term", "evidence", "ontology")
-head(tair_go)
+#head(tair_go)
 
 go_dASG <- tair_go %>% filter(AGI %in% all_dasg$ID) %>% 
   group_by(AGI, ontology) %>% 
@@ -336,16 +333,17 @@ tukey_mf
 
 
 ```{r}
-ggplot(bp, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+ggplot(bp, aes(x = (num_terms), y = group, fill = group, colour= group))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
   scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
   scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+
-  labs(x = "log10 (Number of GO biological processes per gene)",
+  labs(x = "Number of GO biological processes per gene",
        y = "")+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+  scale_x_continuous(trans = "log10")+
 geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("NS", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
 ```
 
@@ -364,16 +362,17 @@ ggplot(bp, aes(x = group, y = num_terms, fill = group))+
 ```
 
 ```{r}
-ggplot(cc, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+ggplot(cc, aes(x = num_terms, y = group, fill = group, colour= group))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
   scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
   scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+
-  labs(x = "log10 (Number of GO cellular components per gene)",
+  labs(x = "Number of GO cellular components per gene",
        y = "")+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+  scale_x_continuous(trans = "log10")+
 geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
 ```
 
@@ -393,16 +392,17 @@ ggplot(cc, aes(x = group, y = count, fill = group))+
 ```
 
 ```{r}
-ggplot(mf, aes(x = log10(num_terms), y = group, fill = group, colour= group))+
+ggplot(mf, aes(x = num_terms, y = group, fill = group, colour= group))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
   scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
   scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+
-  labs(x = "log10 (Number of GO molecular functions per gene)",
+  labs(x = "Number of GO molecular functions per gene",
        y = "")+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
+  scale_x_continuous(trans = "log10")+
 geom_signif(y_position = c(2.32, 2.5, 2.7), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("NS", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
 ```
 
@@ -457,6 +457,7 @@ mf_exp_long <- mf_exp %>% pivot_longer(min_Anna:med_Anna, names_to = "stat", val
 ```
 
 all the interactions are highly significant, but what do they look like?
+BP interaction plot
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(bp_exp_long, aes(x = value, y = num_terms, colour = group))+
@@ -472,6 +473,7 @@ ggplot(bp_exp_long, aes(x = value, y = num_terms, colour = group))+
 dev.off()
 ```
 
+CC interaction plot
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(cc_exp_long, aes(x = value, y = num_terms, colour = group))+
@@ -487,6 +489,7 @@ ggplot(cc_exp_long, aes(x = value, y = num_terms, colour = group))+
 dev.off()
 ```
 
+MF interaction plot
 ```{r}
 png("test.png", units="in", width=6, height=4, res=300)
 ggplot(mf_exp_long, aes(x = value, y = num_terms, colour = group))+
@@ -500,5 +503,21 @@ ggplot(mf_exp_long, aes(x = value, y = num_terms, colour = group))+
   theme(axis.text = element_text(size = 8),
         axis.title = element_text(size = 10))
 dev.off()
+```
+
+lots of genes seem to have only one term, is that term meaningful or just a catch-all?
+```{r}
+bp1 <- filter(bp, num_terms == 1)
+bp1terms <- filter(tair_go, AGI %in% bp1$AGI & ontology == "P")
+unique(bp1terms$term) #1057 terms
+
+cc1 <- filter(cc, num_terms == 1)
+cc1terms <- filter(tair_go, AGI %in% cc1$AGI & ontology == "C")
+unique(cc1terms$term) #111 terms
+
+mf1 <- filter(mf, num_terms == 1)
+mf1terms <- filter(tair_go, AGI %in% mf1$AGI & ontology == "F")
+unique(mf1terms$term) #749 terms
+#so it seems these are actually meaningful, which is unexpected, but also means that the data can probably be trusted at face value 
 ```
 
