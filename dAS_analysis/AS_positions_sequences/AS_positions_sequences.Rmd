@@ -1,0 +1,253 @@
+---
+title: "AS positions and sequences"
+output: html_document
+date: '2023-01-12'
+---
+
+```{r}
+library(tidyverse)
+```
+
+need: vastDB, Tair10 GFF, representative gene models, list of AS events
+
+list of AS events:
+```{r}
+events <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv", delim = "\t") %>% 
+  select(EVENT.x)
+```
+
+vastDB
+```{r}
+inc <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
+inc <- merge(inc, db, by = "EVENT", all.x = T)
+
+#filter the inclusion table to just the events we care about. this will make it much smaller and quicker to work with
+
+inc <- filter(inc, EVENT %in% events$EVENT.x) %>% 
+  separate(COORD, into = c("chr", "coords"), sep = ":") %>% 
+  separate(coords, into = c("start", "end"), sep = "-") %>% 
+  select(EVENT, chr, start, end, GeneID)
+
+rm(db)
+```
+
+representative gene models
+```{r}
+rep_mods <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/rep_gene_mods.tsv", delim = "\t", skip = 3, col_names = F) %>% 
+  mutate(mod = X1) %>% 
+  select(mod) %>% 
+  mutate(GeneID = str_sub(mod, 1, 9)) %>% 
+  filter(GeneID %in% inc$GeneID)
+#this is less than the number of events since some genes have multiple events
+
+inc <- left_join(inc, rep_mods)
+```
+
+
+GFF:
+```{r}
+gff <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Tair10.gff", delim = "\t", col_names = F)
+
+#need to filter down to just the genes we're interested in, and to just their representative isoforms. For gene, mRNA and protein objects, this is ID, and for UTRs, exons and CDSs, it's parent. Should be able to grepl this part out, and assign it to a new column that we can filter from.
+
+ID <- filter(gff, X3 %in% c("mRNA", "protein"))
+parent <- filter(gff, X3 %in% c("exon", "CDS", "five_prime_UTR", "three_prime_UTR"))
+
+ID$model <- str_sub(ID$X9, 4, 14)
+parent$model <- str_sub(parent$X9, 8, 18)
+
+gene_data <- rbind(ID, parent)
+gene_data <- select(gene_data, X1, X3, X4, X5, X7, model) %>% 
+  filter(model %in% rep_mods$mod)
+colnames(gene_data) <- c("chr", "feat", "start", "end", "strand", "model")
+```
+
+```{r}
+#for each event in inc, we want to get all the exonic positions, so pull all the exons for a gene and list out all numbers between the start and end positions, then order them (reverse them if they're on the minus strand) to get a list of all positions that make up the mRNA for that gene
+
+pos_list <- data.frame()
+
+
+for (i in 1:nrow(inc)){
+  single_gene_inc <- inc[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "exon") %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      exon = single_gene_data[j, ]
+      positions = c(positions, seq.int(exon$start, exon$end))
+    }
+  positions = data.frame(positions)
+  positions <- positions %>% mutate(less = ifelse(positions <= single_gene_inc$start, 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, pos_norm = pos_norm)
+  pos_list <- rbind(pos_list, pos_norm)
+}
+```
+
+repeat the above for UTRs: some genes have introns in the UTR, so we'll keep the code the same (looping over each UTR exon) to handle this
+```{r}
+five_pos_list <- data.frame()
+
+#some genes have no 5' UTR, need a way to skip them
+five_utr <- filter(gene_data, feat == "five_prime_UTR")
+inc_has_five <- filter(inc, mod %in% five_utr$model) #601 / 613
+
+for (i in 1:nrow(inc_has_five)){
+  single_gene_inc <- inc_has_five[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "five_prime_UTR") %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      five = single_gene_data[j, ]
+      positions = c(positions, seq.int(five$start, five$end))
+    }
+  positions = data.frame(positions)
+  positions <- positions %>% mutate(less = ifelse(positions <= single_gene_inc$start, 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, pos_norm = pos_norm)
+  five_pos_list <- rbind(five_pos_list, pos_norm)
+}
+
+colnames(five_pos_list) <- c("gene", "event", "five_position")
+
+#so anything with a 1 in this column has the AS after the 5' UTR, any non-one values are 5'UTR splicing
+
+#repeat above for 3'UTR
+three_pos_list <- data.frame()
+
+#some genes have no 5' UTR, need a way to skip them
+three_utr <- filter(gene_data, feat == "three_prime_UTR")
+inc_has_three <- filter(inc, mod %in% three_utr$model) #610 / 613
+
+for (i in 1:nrow(inc_has_three)){
+  single_gene_inc <- inc_has_three[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "three_prime_UTR") %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      three = single_gene_data[j, ]
+      positions = c(positions, seq.int(three$start, three$end))
+    }
+  positions = data.frame(positions)
+  positions <- positions %>% mutate(less = ifelse(positions <= single_gene_inc$start, 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, pos_norm = pos_norm)
+  three_pos_list <- rbind(three_pos_list, pos_norm)
+}
+
+colnames(three_pos_list) <- c("gene", "event", "three_position")
+```
+
+last thing is the CDS:
+```{r}
+cds_pos_list <- data.frame()
+
+for (i in 1:nrow(inc)){
+  single_gene_inc <- inc[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "CDS") %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      cds = single_gene_data[j, ]
+      positions = c(positions, seq.int(cds$start, cds$end))
+    }
+  positions = data.frame(positions)
+  positions <- positions %>% mutate(less = ifelse(positions <= single_gene_inc$start, 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, pos_norm = pos_norm)
+  cds_pos_list <- rbind(cds_pos_list, pos_norm)
+}
+
+colnames(cds_pos_list) <- c("gene", "event", "cds_position")
+```
+
+now to figure out if AS is in the UTRs or CDS
+```{r}
+utr_cds <- left_join(cds_pos_list, five_pos_list)
+utr_cds <- left_join(utr_cds, three_pos_list)
+
+utr_cds <- utr_cds %>% mutate(location = case_when(
+  (cds_position == 1) ~ "three_prime_UTR",
+  (cds_position != 1 & cds_position != 0) ~ "CDS",
+  (cds_position == 0) ~ "five_prime_UTR"
+))
+
+nrow(filter(utr_cds, location == "CDS")) #585
+nrow(filter(utr_cds, location == "five_prime_UTR")) #14
+nrow(filter(utr_cds, location == "three_prime_UTR")) #14
+
+utr_cds <- utr_cds %>% mutate(type = case_when(
+  grepl("AthEX.*", event) ~ "Exon skipping",
+  grepl("AthALTA.*", event) ~ "Alternative 3' SS",
+  grepl("AthALTD", event) ~ "Alternative 5' SS",
+  grepl("AthINT", event) ~ "Intron retention"
+))
+
+ggplot(utr_cds, aes(x = location, fill = type))+
+  geom_bar(stat = "count")+
+  #scale_y_continuous(trans = "log10")+
+  scale_fill_manual(values = c("grey70", "chartreuse2", "palevioletred1", "cadetblue2"))
+```
+
+now plot locations:
+```{r}
+mrna_density <- density(pos_list$strand, adjust = 0.5)
+mrna_density <- data.frame(x = mrna_density$x, y = mrna_density$y)
+ggplot(mrna_density, aes(x = x, fill = y, y = 1)) + 
+  geom_tile(aes(height = 3)) +
+  labs(x = "Normalized transcript location",
+       y = "Density",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y), colour = "black")
+```
+CDS density
+```{r}
+cds <- filter(utr_cds, cds_position != 1 & cds_position != 0)
+cds_density <- density(cds$cds_position, adjust = 0.5)
+cds_density <- data.frame(x = cds_density$x, y = cds_density$y)
+ggplot(cds_density, aes(x = x, fill = y, y = 1)) + 
+  geom_tile(aes(height = 3)) +
+  labs(x = "Normalized CDS location",
+       y = "Density",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y), colour = "black")
+```
+```{r}
+five_prime <- filter(utr_cds, five_position != 1 & five_position != 0)
+five_density <- density(five_prime$five_position, adjust = 0.5, from = 0, to = 1)
+five_density <- data.frame(x = five_density$x, y = five_density$y)
+ggplot(five_density, aes(x = x, fill = y, y = 2)) + 
+  geom_tile(aes(height = 5)) +
+  labs(x = "Normalized 5' UTR location",
+       y = "Density",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density", limits = c(0,4))+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+
+```{r}
+three_prime <- filter(utr_cds, three_position != 1 & three_position != 0)
+three_density <- density(three_prime$three_position, adjust = 0.5, from = 0, to = 1)
+three_density <- data.frame(x = three_density$x, y = three_density$y)
+ggplot(three_density, aes(x = x, fill = y, y = 5)) + 
+  geom_tile(aes(height = 10)) +
+  labs(x = "Normalized 3' UTR location",
+       y = "Density",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+
