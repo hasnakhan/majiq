@@ -5,6 +5,8 @@ date: '2023-01-12'
 ---
 
 ```{r}
+library(phylotools)
+library(Biostrings)
 library(tidyverse)
 ```
 
@@ -13,7 +15,11 @@ need: vastDB, Tair10 GFF, representative gene models, list of AS events
 list of AS events:
 ```{r}
 events <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv", delim = "\t") %>% 
-  select(EVENT.x)
+  select(EVENT.x, comp) %>% 
+  mutate(comp_type = case_when(
+    comp == "K20dK20w" | comp == "K40dK40w"| comp == "K60dK60w" | comp == "L20dL20w" | comp == "L40dL40w" | comp == "L60dL60w" ~ "stress",
+    comp == "K20dL20d" | comp == "K40dL40d" | comp == "K60dL60d" | comp == "K20wL20w" | comp == "K40wL40w" | comp == "K60wL60w" ~ "developmental"))
+colnames(events) <- c("event", "comp", "comp_type")
 ```
 
 vastDB
@@ -25,7 +31,7 @@ inc <- merge(inc, db, by = "EVENT", all.x = T)
 
 #filter the inclusion table to just the events we care about. this will make it much smaller and quicker to work with
 
-inc <- filter(inc, EVENT %in% events$EVENT.x) %>% 
+inc <- filter(inc, EVENT %in% events$event) %>% 
   separate(COORD, into = c("chr", "coords"), sep = ":") %>% 
   separate(coords, into = c("start", "end"), sep = "-") %>% 
   select(EVENT, chr, start, end, GeneID)
@@ -35,11 +41,12 @@ rm(db)
 
 representative gene models
 ```{r}
-rep_mods <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/rep_gene_mods.tsv", delim = "\t", skip = 3, col_names = F) %>% 
+rep_mods_all <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/rep_gene_mods.tsv", delim = "\t", skip = 3, col_names = F) %>%  
   mutate(mod = X1) %>% 
   select(mod) %>% 
-  mutate(GeneID = str_sub(mod, 1, 9)) %>% 
-  filter(GeneID %in% inc$GeneID)
+  mutate(GeneID = str_sub(mod, 1, 9))
+
+rep_mods <- filter(rep_mods_all, GeneID %in% inc$GeneID)
 #this is less than the number of events since some genes have multiple events
 
 inc <- left_join(inc, rep_mods)
@@ -141,7 +148,7 @@ for (i in 1:nrow(inc_has_three)){
 colnames(three_pos_list) <- c("gene", "event", "three_position")
 ```
 
-last thing is the CDS:
+last thing is the CDS: get AS positions
 ```{r}
 cds_pos_list <- data.frame()
 
@@ -186,68 +193,267 @@ utr_cds <- utr_cds %>% mutate(type = case_when(
   grepl("AthINT", event) ~ "Intron retention"
 ))
 
-ggplot(utr_cds, aes(x = location, fill = type))+
-  geom_bar(stat = "count")+
-  #scale_y_continuous(trans = "log10")+
-  scale_fill_manual(values = c("grey70", "chartreuse2", "palevioletred1", "cadetblue2"))
+#ggplot(utr_cds, aes(x = location, fill = type))+
+  #geom_bar(stat = "count")+
+  #scale_fill_manual(values = c("grey70", "chartreuse2", "palevioletred1", "cadetblue2"))
+
+utr_cds_comps <- left_join(utr_cds, events)
+#filter(utr_cds, location == "three_prime_UTR") %>% 
+ # group_by(comp_type) %>% 
+  #summarize(count = n())
 ```
 
-now plot locations:
+now plot locations: cDNA density
 ```{r}
-mrna_density <- density(pos_list$strand, adjust = 0.5)
+mrna_density <- density(pos_list$strand, adjust = 0.5, from = 0, to = 1)
 mrna_density <- data.frame(x = mrna_density$x, y = mrna_density$y)
 ggplot(mrna_density, aes(x = x, fill = y, y = 1)) + 
   geom_tile(aes(height = 3)) +
   labs(x = "Normalized transcript location",
-       y = "Density",
+       y = "Density of AS start positions",
        legend = "Density")+
   theme(#axis.text.y = element_blank(),
         axis.ticks.y = element_blank())+
   scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
   geom_line(aes(y = y), colour = "black")
 ```
-CDS density
+
+cDNA by comp_type (histograms)
+```{r}
+cdna_stress <- events %>% filter(comp_type == "stress") %>% 
+  left_join(., pos_list, by = "event")
+
+dev_stress <- events %>% filter(comp_type == "developmental") %>% 
+  left_join(., pos_list, by = "event")
+```
+
+```{r}
+png("test.png", units="in", width=8, height=4, res=300)
+ggplot(cdna_stress, aes(x = strand))+
+  geom_histogram(binwidth = 0.05, fill = "lightblue")+
+  lims(x =c(0,1))+
+  labs(x = "Normalized transcript location",
+       y = "Stress-induced AS events \n(n = 383)")+
+  theme(axis.ticks.y = element_blank())
+dev.off()
+```
+
+```{r}
+png("test.png", units="in", width=8, height=4, res=300)
+ggplot(dev_stress, aes(x = strand))+
+  geom_histogram(binwidth = 0.05, fill = "lightsteelblue3")+
+  lims(x =c(0, 1))+
+  labs(x = "Normalized transcript location",
+       y = "Developmental AS events \n(n = 328)")+
+  scale_y_reverse()
+dev.off()
+```
+
+
+plot CDS density
 ```{r}
 cds <- filter(utr_cds, cds_position != 1 & cds_position != 0)
-cds_density <- density(cds$cds_position, adjust = 0.5)
+cds_density <- density(cds$cds_position, adjust = 0.5, from = 0, to = 1)
 cds_density <- data.frame(x = cds_density$x, y = cds_density$y)
 ggplot(cds_density, aes(x = x, fill = y, y = 1)) + 
   geom_tile(aes(height = 3)) +
   labs(x = "Normalized CDS location",
-       y = "Density",
+       y = "Density of AS start positions",
        legend = "Density")+
   theme(#axis.text.y = element_blank(),
         axis.ticks.y = element_blank())+
   scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
   geom_line(aes(y = y), colour = "black")
 ```
+
+plot 5'UTR density
 ```{r}
 five_prime <- filter(utr_cds, five_position != 1 & five_position != 0)
-five_density <- density(five_prime$five_position, adjust = 0.5, from = 0, to = 1)
+#five_density <- density(five_prime$five_position, adjust = 0.5, from = 0, to = 1)
+five_density <- density(five_prime$five_position, adjust = 0.5)
 five_density <- data.frame(x = five_density$x, y = five_density$y)
 ggplot(five_density, aes(x = x, fill = y, y = 2)) + 
   geom_tile(aes(height = 5)) +
   labs(x = "Normalized 5' UTR location",
-       y = "Density",
-       legend = "Density")+
-  theme(#axis.text.y = element_blank(),
-        axis.ticks.y = element_blank())+
-  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density", limits = c(0,4))+
-  geom_line(aes(y = y, x = x), colour = "black")
-```
-
-```{r}
-three_prime <- filter(utr_cds, three_position != 1 & three_position != 0)
-three_density <- density(three_prime$three_position, adjust = 0.5, from = 0, to = 1)
-three_density <- data.frame(x = three_density$x, y = three_density$y)
-ggplot(three_density, aes(x = x, fill = y, y = 5)) + 
-  geom_tile(aes(height = 10)) +
-  labs(x = "Normalized 3' UTR location",
-       y = "Density",
+       y = "Density of AS start positions",
        legend = "Density")+
   theme(#axis.text.y = element_blank(),
         axis.ticks.y = element_blank())+
   scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
   geom_line(aes(y = y, x = x), colour = "black")
 ```
+
+plot 3'UTR density
+```{r}
+three_prime <- filter(utr_cds, three_position != 1 & three_position != 0)
+#three_density <- density(three_prime$three_position, adjust = 0.5, from = 0, to = 1)
+three_density <- density(three_prime$three_position, adjust = 0.5)
+three_density <- data.frame(x = three_density$x, y = three_density$y)
+ggplot(three_density, aes(x = x, fill = y, y = 5)) + 
+  geom_tile(aes(height = 10)) +
+  labs(x = "Normalized 3' UTR location",
+       y = "Density of AS start positions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+
+The cDNA and CDS look pretty uninteresting, but the UTRs could be kinda cool if the trend is real. However it might just be that all UTR SJs are located towards the CDS side. To figure that out, plot the density of UTR splice junctions
+
+5' UTR
+```{r}
+fpu <- filter(gff, X3 == "five_prime_UTR")
+fpu$model <- str_sub(fpu$X9, 8, 18)
+
+fpu <- select(fpu, X1, X3, X4, X5, X7, model) %>% 
+  filter(model %in% rep_mods_all$mod)
+colnames(fpu) <- c("chr", "feat", "start", "end", "strand", "model")
+fpu2 <- fpu %>% group_by(model) %>% 
+  summarize(count = n()) %>% 
+  filter(count >= 2)
+max(fpu2$count) #ok wow so there's at least 1 gene with 9 exons in the 5' UTR... so the SJ code needs to account for more than 1 SJ. 3403 genes have at least 1 SJ in the 5' UTR
+
+fpu <- fpu %>% filter(model %in% fpu2$model)
+
+#for each UTR, we can list out all the positions as before. The curveball is that now we have to identify the location of each splice junction in each UTR. The splice junction can be identified as the start of any exon other than the first one, so we need a system of numbering the exons as well. maybe we can filter out all the exons that aren't the first one and then run them individually? There's no real need to group junctions of the same gene together after all... 
+
+fpu <- fpu %>% group_by(model) %>% 
+  mutate(exon_num = row_number())
+
+junctions5 <- filter(fpu, exon_num != 1)
+#so now the start positions in junctions5 define 5' UTR SJs, and we can run the same loop as for AS locations, where we piece together the UTR positions, and identify the relative location of the junction
+
+junction5_pos_list <- data.frame()
+
+
+for (i in 1:nrow(junctions5)){
+  single_gene_inc <- junctions5[i, ]
+  single_gene_data <- filter(fpu, model == single_gene_inc$model) %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      five = single_gene_data[j, ]
+      positions = c(positions, seq.int(five$start, five$end))
+    }
+  positions = data.frame(positions)
+  test_position <- ifelse(single_gene_data[1, 5] == "-", single_gene_inc$end, single_gene_inc$start)
+  positions <- positions %>% mutate(less = ifelse(positions <= test_position[1,1], 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$model, pos_norm = pos_norm)
+  junction5_pos_list <- rbind(junction5_pos_list, pos_norm)
+}
+
+
+five_junction_density <- density(junction5_pos_list$strand, adjust = 0.5, from = 0, to = 1)
+five_junction_density <- data.frame(x = five_junction_density$x, y = five_junction_density$y)
+ggplot(five_junction_density, aes(x = x, fill = y, y = 1.5)) + 
+  geom_tile(aes(height = 3)) +
+  labs(x = "Normalized 5' UTR location",
+       y = "Density of splice junctions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+
+```{r}
+tpu <- filter(gff, X3 == "three_prime_UTR")
+tpu$model <- str_sub(tpu$X9, 8, 18)
+
+tpu <- select(tpu, X1, X3, X4, X5, X7, model) %>% 
+  filter(model %in% rep_mods_all$mod)
+colnames(tpu) <- c("chr", "feat", "start", "end", "strand", "model")
+tpu2 <- tpu %>% group_by(model) %>% 
+  summarize(count = n()) %>% 
+  filter(count >= 2)
+max(tpu2$count) #ok wow so there's at least 1 gene with 15 exons in the 3' UTR... so the SJ code needs to account for more than 1 SJ. 3403 genes have at least 1 SJ in the 5' UTR
+
+tpu <- tpu %>% filter(model %in% tpu2$model)
+
+tpu <- tpu %>% group_by(model) %>% 
+  mutate(exon_num = row_number())
+
+junctions3 <- filter(tpu, exon_num != 1)
+#so now the start positions in junctions5 define 5' UTR SJs, and we can run the same loop as for AS locations, where we piece together the UTR positions, and identify the relative location of the junction
+
+junction3_pos_list <- data.frame()
+
+
+for (i in 1:nrow(junctions3)){
+  single_gene_inc <- junctions3[i, ]
+  single_gene_data <- filter(tpu, model == single_gene_inc$model) %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      three = single_gene_data[j, ]
+      positions = c(positions, seq.int(three$start, three$end))
+    }
+  positions = data.frame(positions)
+  test_position <- ifelse(single_gene_data[1, 5] == "-", single_gene_inc$end, single_gene_inc$start)
+  positions <- positions %>% mutate(less = ifelse(positions <= test_position[1,1], 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$model, pos_norm = pos_norm)
+  junction3_pos_list <- rbind(junction3_pos_list, pos_norm)
+}
+
+
+three_junction_density <- density(junction3_pos_list$strand, adjust = 0.5, from = 0, to = 1)
+three_junction_density <- data.frame(x = three_junction_density$x, y = three_junction_density$y)
+ggplot(three_junction_density, aes(x = x, fill = y, y = 2.25)) + 
+  geom_tile(aes(height = 4.5)) +
+  labs(x = "Normalized 3' UTR location",
+       y = "Density of splice junctions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+so AS density in the UTRs closely mirrors SJ density... no surprises there... 
+
+for PTCs, we're only interested in IR events that happen in the CDS
+```{r}
+ir_cds <- filter(utr_cds, location == "CDS" & type == "Intron retention") #572 events
+ir_cds_inc <- filter(inc, EVENT %in% ir_cds$event)
+athal_gdna <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Athaliana_167_TAIR10.fa.gz")
+athal_gdna$seq.name <- str_sub(athal_gdna$seq.name, 1, 4)
+
+ir_cds_seq <- data.frame()
+
+for (i in 1:nrow(ir_cds_inc)){
+  single_gene_inc <- ir_cds_inc[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "CDS") 
+  dir = single_gene_data[1, 5]
+  single_gene_cds <-  select(single_gene_data, start, end)
+  single_gene_pos <- select(single_gene_inc, start, end)
+  complete_gene_data <- as.data.frame(rbind(single_gene_cds, single_gene_pos))
+  sorted <- complete_gene_data %>% arrange(start)
+
+  seq = data.frame()
+  
+  for (j in 1:nrow(sorted)){
+      chr = single_gene_data[1,1]
+      chr <- dplyr::filter(athal_gdna, seq.name == chr[1,1])
+      chr <- dplyr::filter(athal_gdna, seq.name == chr[1,1])
+      temp <- str_sub(chr$seq.text, sorted[j, 1], sorted[j, 2])
+      temp <- paste(temp, collapse = "")
+      seq[j, 1] <- temp
+      temp <- vector()
+  }
+  seq <- as.vector(seq$V1)
+  seq <- paste(seq, collapse = "")
+  if (dir[1, 1] == "-"){
+  seq <- as.character(reverseComplement(DNAString(seq)))
+  }
+  seq <- as.character(translate(DNAString(seq), if.fuzzy.codon = "X"))
+  sequence <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, sequence = seq)
+  ir_cds_seq <- rbind(ir_cds_seq, sequence)
+}
+
+write.table(ir_cds_seq, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/IR_CDS_sequences.tsv", row.names = F, quote = F)
+```
+
 
