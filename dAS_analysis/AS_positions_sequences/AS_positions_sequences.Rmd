@@ -223,7 +223,7 @@ cDNA by comp_type (histograms)
 cdna_stress <- events %>% filter(comp_type == "stress") %>% 
   left_join(., pos_list, by = "event")
 
-dev_stress <- events %>% filter(comp_type == "developmental") %>% 
+cdna_dev <- events %>% filter(comp_type == "developmental") %>% 
   left_join(., pos_list, by = "event")
 ```
 
@@ -240,7 +240,7 @@ dev.off()
 
 ```{r}
 png("test.png", units="in", width=8, height=4, res=300)
-ggplot(dev_stress, aes(x = strand))+
+ggplot(cdna_dev, aes(x = strand))+
   geom_histogram(binwidth = 0.05, fill = "lightsteelblue3")+
   lims(x =c(0, 1))+
   labs(x = "Normalized transcript location",
@@ -420,10 +420,14 @@ ir_cds <- filter(utr_cds, location == "CDS" & type == "Intron retention") #572 e
 ir_cds_inc <- filter(inc, EVENT %in% ir_cds$event)
 athal_gdna <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Athaliana_167_TAIR10.fa.gz")
 athal_gdna$seq.name <- str_sub(athal_gdna$seq.name, 1, 4)
+chr <- filter(athal_gdna, seq.name == as.character(chr_num[1, 1]))
+athal_gdna$seq.name
+chr <- filter(athal_gdna, seq.name == "Chr4")
 
 ir_cds_seq <- data.frame()
 
 for (i in 1:nrow(ir_cds_inc)){
+#for (i in 57:171){
   single_gene_inc <- ir_cds_inc[i, ]
   single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "CDS") 
   dir = single_gene_data[1, 5]
@@ -435,9 +439,9 @@ for (i in 1:nrow(ir_cds_inc)){
   seq = data.frame()
   
   for (j in 1:nrow(sorted)){
-      chr = single_gene_data[1,1]
-      chr <- dplyr::filter(athal_gdna, seq.name == chr[1,1])
-      chr <- dplyr::filter(athal_gdna, seq.name == chr[1,1])
+      chr_num = single_gene_data[1,1]
+      chr <- dplyr::filter(athal_gdna, seq.name == as.character(chr_num[1,1]))
+      #chr <- dplyr::filter(athal_gdna, seq.name == chr_num[1,1])
       temp <- str_sub(chr$seq.text, sorted[j, 1], sorted[j, 2])
       temp <- paste(temp, collapse = "")
       seq[j, 1] <- temp
@@ -448,12 +452,97 @@ for (i in 1:nrow(ir_cds_inc)){
   if (dir[1, 1] == "-"){
   seq <- as.character(reverseComplement(DNAString(seq)))
   }
-  seq <- as.character(translate(DNAString(seq), if.fuzzy.codon = "X"))
+  seq <- as.character(translate(DNAString(seq)))
   sequence <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, sequence = seq)
   ir_cds_seq <- rbind(ir_cds_seq, sequence)
 }
 
-write.table(ir_cds_seq, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/IR_CDS_sequences.tsv", row.names = F, quote = F)
+#write.table(ir_cds_seq, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/IR_CDS_sequences.tsv", row.names = F, quote = F)
+
+ir_cds_seq <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/IR_CDS_sequences.tsv")
 ```
 
+need to get lengths for the IR AA sequences (up to first *) and compare to representative isoforms to determine PTCs. then plot PTC-causing events.
+```{r}
+athal_cds <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/species_files/Athaliana.cds.fa.gz") 
+athal_cds$seq.name <- str_sub(athal_cds$seq.name, 1, 11)
+athal_cds <- filter(athal_cds, seq.name %in% ir_cds_inc$mod)
+athal_cds$rep_length <- nchar(athal_cds$seq.text)/3 - 1
+athal_cds$model <- athal_cds$seq.name
+
+ir_cds_seq$orf <- sub("\\*.*", "", ir_cds_seq$sequence)
+ir_cds_seq$as_length <- nchar(ir_cds_seq$orf)
+ir_cds_seq$model <- ir_cds_inc$mod
+ir_cds_seq$start <- as.numeric(ir_cds_inc$start)
+ir_cds_seq$end <- as.numeric(ir_cds_inc$end)
+ir_cds_seq$intron_length <- abs(ir_cds_seq$end - ir_cds_seq$start)
+
+ir_cds_seq <- left_join(ir_cds_seq, athal_cds[, c(3, 4)])
+ir_cds_seq$ptc <- ifelse(ir_cds_seq$as_length < ir_cds_seq$rep_length + (ir_cds_seq$intron_length/3), "yes", "no")
+nrow(filter(ir_cds_seq, ptc == "no")) #7 events have no PTC
+
+ir_cds_seq <- left_join(ir_cds_seq, cds_pos_list[, c(2, 3)])
+
+ir_cds_ptc <- filter(ir_cds_seq, ptc == "yes")
+ir_cds_no_ptc <- filter(ir_cds_seq, ptc == "no")
+
+ir_cds_ptc_density <- density(ir_cds_ptc$cds_position, adjust = 0.5, from = 0, to = 1)
+ir_cds_ptc_density <- data.frame(x = ir_cds_ptc_density$x, y = ir_cds_ptc_density$y)
+ggplot(ir_cds_ptc_density, aes(x = x, fill = y, y = 1)) + 
+  geom_tile(aes(height = 2)) +
+  labs(x = "Normalized CDS location",
+       y = "Density of PTC-causing IR start positions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y), colour = "black")
+```
+
+plot non-PTC events, and figure out how many of those are developmental
+```{r}
+ir_cds_no_ptc_density <- density(ir_cds_no_ptc$cds_position, adjust = 0.5, from = 0, to = 1)
+ir_cds_no_ptc_density <- data.frame(x = ir_cds_no_ptc_density$x, y = ir_cds_no_ptc_density$y)
+ggplot(ir_cds_no_ptc_density, aes(x = x, fill = y, y = 1.5)) + 
+  geom_tile(aes(height = 3)) +
+  labs(x = "Normalized CDS location",
+       y = "Density of frame-preserving IR start positions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y), colour = "black")
+
+filter(events, event %in% ir_cds_no_ptc$event)
+```
+
+plot IR-PTC events by drought/dev comp (histograms)
+```{r}
+ptc_type <- left_join(ir_cds_seq, events)
+ptc_stress <- filter(ptc_type, comp_type == "stress")
+ptc_dev <- filter(ptc_type, comp_type == "developmental")
+```
+
+```{r}
+png("test.png", units="in", width=8, height=4, res=300)
+ggplot(ptc_stress, aes(x = cds_position))+
+  geom_histogram(binwidth = 0.05, fill = "lightblue")+
+  lims(x =c(0,1))+
+  labs(x = "Normalized CDS location",
+       y = "Stress-induced PTC-causing IR events \n(n = 357)")+
+  theme(axis.ticks.y = element_blank())
+dev.off()
+```
+
+
+```{r}
+png("test.png", units="in", width=8, height=4, res=300)
+ggplot(ptc_dev, aes(x = cds_position))+
+  geom_histogram(binwidth = 0.05, fill = "lightsteelblue3")+
+  lims(x =c(0, 1))+
+  labs(x = "Normalized CDS location",
+       y = "Developmental PTC-causing IR events \n(n = 306)")+
+  scale_y_reverse()
+dev.off()
+```
 
