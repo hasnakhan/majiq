@@ -341,6 +341,19 @@ model_mf <- aov(mf$num_terms ~ mf$group)
 summary(model_mf)
 tukey_mf <- TukeyHSD(model_mf)
 tukey_mf
+
+#KS test bp
+ks_bp <- pivot_wider(bp, names_from = group, values_from = num_terms)
+ks_bp_das_deg <- ks.test(ks_bp$dAS, ks_bp$DE)
+ks_bp_das_deg$p.value #0.01981136
+
+ks_bp_das_unreg <- ks.test(ks_bp$dAS, ks_bp$unreg)
+ks_bp_das_unreg$p.value #0
+
+ks_bp_de_unreg <- ks.test(ks_bp$DE, ks_bp$unreg)
+ks_bp_de_unreg$p.value #0
+
+p.adjust(c(ks_bp_das_deg$p.value, ks_bp_das_unreg$p.value, ks_bp_de_unreg$p.value), method = "BH")
 ```
 
 
@@ -356,7 +369,7 @@ ggplot(bp, aes(x = (num_terms), y = group, fill = group, colour= group))+
        y = "")+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
   scale_x_continuous(trans = "log10")+
-geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("NS", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
+geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("*", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
 ```
 
 bp boxplot
