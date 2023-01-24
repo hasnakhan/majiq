@@ -94,6 +94,63 @@ for (i in 1:nrow(inc)){
 }
 ```
 
+how well does this mirror splice junction locations (across the whole transcript length, are alt SJs distrbuted differently than all SJs?)
+```{r}
+exons <- filter(gff, X3 == "exon")
+exons$model <- str_sub(exons$X9, 8, 18)
+
+exons <- select(exons, X1, X3, X4, X5, X7, model) %>% 
+  filter(model %in% rep_mods_all$mod)
+colnames(exons) <- c("chr", "feat", "start", "end", "strand", "model")
+exons2 <- exons %>% group_by(model) %>% 
+  summarize(count = n()) %>% 
+  filter(count >= 2) #22 146 genes have at least 2 exons (at least 1 SJ)
+
+exons <- exons %>% filter(model %in% exons2$model)
+
+#for each UTR, we can list out all the positions as before. The curveball is that now we have to identify the location of each splice junction in each UTR. The splice junction can be identified as the start of any exon other than the first one, so we need a system of numbering the exons as well. maybe we can filter out all the exons that aren't the first one and then run them individually? There's no real need to group junctions of the same gene together after all... 
+
+exons <- exons %>% group_by(model) %>% 
+  mutate(exon_num = row_number())
+
+SJ <- filter(exons, exon_num != 1)
+#so now the start positions in SJ define SJs, and we can run the same loop as for AS locations, where we piece together the exon positions, and identify the relative location of the junction
+
+SJ_pos_list <- data.frame()
+
+
+for (i in 1:nrow(SJ)){
+  single_gene_inc <- SJ[i, ]
+  single_gene_data <- filter(exons, model == single_gene_inc$model) %>% 
+    rowwise()
+  positions = vector()
+    for (j in 1:nrow(single_gene_data)){
+      temp = single_gene_data[j, ]
+      positions = c(positions, seq.int(temp$start, temp$end))
+    }
+  positions = data.frame(positions)
+  test_position <- ifelse(single_gene_data[1, 5] == "-", single_gene_inc$end, single_gene_inc$start)
+  positions <- positions %>% mutate(less = ifelse(positions <= test_position[1,1], 1, 0))
+  pos_norm <- ifelse(single_gene_data[1, 5] == "-", 1 - (sum(positions$less))/(nrow(positions)), (sum(positions$less))/(nrow(positions)))
+  pos_norm <- data.frame(gene = single_gene_inc$model, pos_norm = pos_norm)
+  SJ_pos_list <- rbind(SJ_pos_list, pos_norm)
+}
+
+
+junction_density <- density(SJ_pos_list$strand, adjust = 0.5, from = 0, to = 1)
+junction_density <- data.frame(x = junction_density$x, y = junction_density$y)
+ggplot(junction_density, aes(x = x, fill = y, y = 1)) + 
+  geom_tile(aes(height = 2)) +
+  labs(x = "Normalized transcript location",
+       y = "Density of splice junctions",
+       legend = "Density")+
+  theme(#axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
+  geom_line(aes(y = y, x = x), colour = "black")
+```
+
+
 repeat the above for UTRs: some genes have introns in the UTR, so we'll keep the code the same (looping over each UTR exon) to handle this
 ```{r}
 five_pos_list <- data.frame()
