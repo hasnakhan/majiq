@@ -1339,8 +1339,8 @@ tree_data <- data.frame(alt_ortho = c(23, 21, 21, 22, 22, 18, 19, 16),
                         const_struct = c(23, 18, 21, 21, 20, 15, 16, 15),
                         tip.label = c("A. thaliana", "A. halleri", "A. lyrata", "C. rubella", "B. rapa", "S. tuberosum", "S. lycopersicum", "G. max"))
 tree_data <- tree_data %>% mutate(alt = alt_struct/alt_ortho, const = const_struct/const_ortho) %>% 
-  pivot_longer(c(alt, const), names_to = "type", values_to = "conservation")
-tree_data$tip.label <- factor(tree_data$tip.label, levels = c("A. lyrata", "A. halleri", "A. thaliana", "C. rubella", "B. rapa", "S. lycopersicum", "S. tuberosum", "G. max"))
+  mutate(ratio = alt/const)
+tree_data$tip.label <- factor(tree_data$tip.label, levels = c("A. thaliana", "A. lyrata", "A. halleri", "C. rubella", "B. rapa", "S. lycopersicum", "S. tuberosum", "G. max"))
 #all_data <- full_join(tree, tree_data, by = "tip.label")
 ggtree(tree)+
   geom_tiplab(hjust = 1, size = 4, vjust = -.5)+
@@ -1348,12 +1348,17 @@ ggtree(tree)+
 #try aplot for alignment
 g <- ggtree(tree, ladderize = F)+
   geom_tiplab(hjust = 1, size = 4, vjust = -.5)
-b <- ggplot(tree_data, aes(x = conservation, fill = type, y = fct_rev(tip.label)))+
-  geom_bar(aes(fill = type), position = position_dodge(), stat = "identity")
+ggplot(tree_data, aes(x = ratio, y = fct_rev(tip.label)))+
+  geom_bar(stat = "identity", fill = "lightblue")+
+  coord_cartesian(xlim = c(0.7, 1.1))+
+  geom_vline(xintercept = 1, linetype = 2)+
+  theme_minimal()+
+  labs(x = "Ratio of conserved alternative introns to constitutive introns",
+       y = "")
   #geom_text(aes(label = tip.label))
   #coord_flip()+
  # theme_tree2()
-b
+
 library(aplot)
 g %>% insert_right(b)
 g
@@ -1457,7 +1462,8 @@ test for significance by wilcoxon sign-rank test (basically a non-parametric pai
 upexon_scores_test <- upexon_scores_plot %>% 
   pivot_wider(names_from = Type_mean, values_from = mean) %>% 
   filter(Type_median == "alt_med")
-wilcox.test(upexon_scores_test$alt_mean, upexon_scores_test$cons_mean, paired = T, alternative = "greater") #p = 0.004984
+#not gonna do paired here casue it wasn't immediately obvious to me that i should (ie wasn't my null hypothesis)
+wilcox.test(upexon_scores_test$alt_mean, upexon_scores_test$cons_mean, paired = T) #p = 0.009968
 ```
 
 
@@ -1517,7 +1523,7 @@ wilcoxon sign-rank test
 downexon_scores_test <- downexon_scores_plot %>% 
   pivot_wider(names_from = Type_mean, values_from = mean) %>% 
   filter(Type_median == "alt_med")
-wilcox.test(downexon_scores_test$alt_mean, downexon_scores_test$cons_mean, paired = T, alternative = "greater") #p = 1.494e-06
+wilcox.test(downexon_scores_test$alt_mean, downexon_scores_test$cons_mean, paired = T) #p = 2.988e-06
 ```
 
 

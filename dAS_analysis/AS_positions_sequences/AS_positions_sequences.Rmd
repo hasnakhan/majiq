@@ -10,6 +10,8 @@ library(Biostrings)
 library(tidyverse)
 library(ggsignif)
 library(ggridges)
+library(ggVennDiagram)
+library(VennDiagram)
 ```
 
 need: vastDB, Tair10 GFF, representative gene models, list of AS events
@@ -94,6 +96,9 @@ for (i in 1:nrow(inc)){
   pos_norm <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, pos_norm = pos_norm)
   pos_list <- rbind(pos_list, pos_norm)
 }
+
+mrna_density <- density(pos_list$strand, adjust = 0.5, from = 0, to = 1)
+mrna_density <- data.frame(x = mrna_density$x, y = mrna_density$y)
 ```
 
 how well does this mirror splice junction locations (across the whole transcript length, are alt SJs distrbuted differently than all SJs?)
@@ -141,6 +146,10 @@ for (i in 1:nrow(SJ)){
 
 junction_density <- density(SJ_pos_list$strand, adjust = 0.5, from = 0, to = 1)
 junction_density <- data.frame(x = junction_density$x, y = junction_density$y)
+```
+
+```{r}
+png("test.png", width = 8, height = 4, units = "in", res = 300)
 ggplot(junction_density, aes(x = x, fill = y, y = 1)) + 
   geom_tile(aes(height = 2)) +
   labs(x = "Normalized transcript location",
@@ -150,6 +159,7 @@ ggplot(junction_density, aes(x = x, fill = y, y = 1)) +
         axis.ticks.y = element_blank())+
   scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
   geom_line(aes(y = y, x = x), colour = "black")
+dev.off()
 ```
 
 
@@ -260,12 +270,43 @@ utr_cds_comps <- left_join(utr_cds, events)
 #filter(utr_cds, location == "three_prime_UTR") %>% 
  # group_by(comp_type) %>% 
   #summarize(count = n())
+
+#what about the overlap between the 3 locations:
+as_cds <- utr_cds %>% filter(location == "CDS") %>% 
+  select(gene)
+as_cds <- unique(as_cds$gene)
+as_5utr <- utr_cds %>% filter(location == "five_prime_UTR") %>% 
+  select(gene)
+as_5utr <- unique(as_5utr$gene)
+as_3utr <- utr_cds %>% filter(location == "three_prime_UTR") %>% 
+  select(gene)
+as_3utr <- unique(as_3utr$gene)
+location <- list(as_3utr, as_cds, as_5utr)
 ```
+
+venn diagram of AS locations (CDS, UTRs)
+```{r}
+png("test.png", width = 5, height = 5, units = "in", res = 300)
+ggVennDiagram(location,
+              label_color = "white",
+              label_alpha = 0,
+              category.names = c("3' UTR", "CDS", "5' UTR"),
+              label_size = 4,
+              set_size = 6,
+              edge_size = 1)+
+  scale_fill_gradient(high = "orchid", low = "grey")+
+  theme(legend.position = "none")
+dev.off()
+```
+
+```{r}
+venn.diagram(x = location, filename = "test.png", category = c("3' UTR", "CDS", "5' UTR"), fontfamily = "sans", cat.fontfamily = "sans", ext.text = T, cat.pos = c(0, 0, 0), cat.cex = c(1.5, 1.5, 1.5), col = c("palegreen1", "limegreen", "lightgreen"), fill = c("palegreen1", "limegreen", "lightgreen"), overrideTriple = T)
+```
+
 
 now plot locations: cDNA density
 ```{r}
-mrna_density <- density(pos_list$strand, adjust = 0.5, from = 0, to = 1)
-mrna_density <- data.frame(x = mrna_density$x, y = mrna_density$y)
+png("test.png", width = 8, height = 3, units = "in", res = 300)
 ggplot(mrna_density, aes(x = x, fill = y, y = 1)) + 
   geom_tile(aes(height = 3)) +
   labs(x = "Normalized transcript location",
@@ -275,6 +316,7 @@ ggplot(mrna_density, aes(x = x, fill = y, y = 1)) +
         axis.ticks.y = element_blank())+
   scale_fill_gradientn(colours = c("blue", "yellow", "red"), name = "Density")+
   geom_line(aes(y = y), colour = "black")
+dev.off()
 ```
 
 cDNA by comp_type (histograms)
@@ -284,27 +326,37 @@ cdna_stress <- events %>% filter(comp_type == "stress") %>%
 
 cdna_dev <- events %>% filter(comp_type == "developmental") %>% 
   left_join(., pos_list, by = "event")
+
+#where, generally, are these things located?
+nrow(filter(pos_list, strand < 0.5))/nrow(pos_list) #58.24% events before the halfway point
+nrow(filter(cdna_stress, strand < 0.5))/nrow(cdna_stress) #61.62 % before 0.5
+nrow(filter(cdna_dev, strand < 0.5))/nrow(cdna_dev) #53.35% before 0.5
+t.test(cdna_stress$strand, cdna_dev$strand) #p = 0.0067 (**) by 2-sample t-test -> stress events happen earlier in the transcript
+
 ```
 
 ```{r}
-png("test.png", units="in", width=8, height=4, res=300)
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(cdna_stress, aes(x = strand))+
   geom_histogram(binwidth = 0.05, fill = "lightblue")+
   lims(x =c(0,1))+
   labs(x = "Normalized transcript location",
        y = "Stress-induced AS events \n(n = 383)")+
+  theme_minimal()+
   theme(axis.ticks.y = element_blank())
 dev.off()
 ```
 
 ```{r}
-png("test.png", units="in", width=8, height=4, res=300)
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(cdna_dev, aes(x = strand))+
   geom_histogram(binwidth = 0.05, fill = "lightsteelblue3")+
   lims(x =c(0, 1))+
   labs(x = "Normalized transcript location",
        y = "Developmental AS events \n(n = 328)")+
-  scale_y_reverse()
+  scale_y_reverse()+
+  theme_minimal()+
+  theme(axis.ticks.y = element_blank())
 dev.off()
 ```
 
@@ -483,7 +535,6 @@ athal_gdna$seq.name <- str_sub(athal_gdna$seq.name, 1, 4)
 ir_cds_seq <- data.frame()
 
 for (i in 1:nrow(ir_cds_inc)){
-#for (i in 57:171){
   single_gene_inc <- ir_cds_inc[i, ]
   single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "CDS") 
   dir = single_gene_data[1, 5]
@@ -497,7 +548,6 @@ for (i in 1:nrow(ir_cds_inc)){
   for (j in 1:nrow(sorted)){
       chr_num = single_gene_data[1,1]
       chr <- dplyr::filter(athal_gdna, seq.name == as.character(chr_num[1,1]))
-      #chr <- dplyr::filter(athal_gdna, seq.name == chr_num[1,1])
       temp <- str_sub(chr$seq.text, sorted[j, 1], sorted[j, 2])
       temp <- paste(temp, collapse = "")
       seq[j, 1] <- temp
@@ -544,6 +594,9 @@ ir_cds_no_ptc <- filter(ir_cds_seq, ptc == "no")
 
 ir_cds_ptc_density <- density(ir_cds_ptc$cds_position, adjust = 0.5, from = 0, to = 1)
 ir_cds_ptc_density <- data.frame(x = ir_cds_ptc_density$x, y = ir_cds_ptc_density$y)
+```
+
+```{r}
 ggplot(ir_cds_ptc_density, aes(x = x, fill = y, y = 1)) + 
   geom_tile(aes(height = 2)) +
   labs(x = "Normalized CDS location",
@@ -602,6 +655,45 @@ ggplot(ptc_dev, aes(x = cds_position))+
 dev.off()
 ```
 
+for the IR events, get the cDNA sequence (or the CDS if AtRTD3 provides that for comparison)
+scrap this, TSS are too variable for this to be much use... would need a similarity-based cutoff rather than a perfect match... not worth it imo
+```{r}
+ir_inc <- filter(inc, grepl("AthINT", EVENT))
+
+#get cDNA sequences for each IR event
+ir_cdna_seq <- data.frame()
+
+for (i in 1:nrow(ir_inc)){
+  single_gene_inc <- ir_inc[i, ]
+  single_gene_data <- filter(gene_data, model == single_gene_inc$mod & feat == "exon") 
+  dir = single_gene_data[1, 5]
+  single_gene_cdna <-  select(single_gene_data, start, end)
+  single_gene_pos <- select(single_gene_inc, start, end)
+  complete_gene_data <- as.data.frame(rbind(single_gene_cdna, single_gene_pos))
+  sorted <- complete_gene_data %>% arrange(start)
+
+  seq = data.frame()
+  
+  for (j in 1:nrow(sorted)){
+      chr_num = single_gene_data[1,1]
+      chr <- dplyr::filter(athal_gdna, seq.name == as.character(chr_num[1,1]))
+      temp <- str_sub(chr$seq.text, sorted[j, 1], sorted[j, 2])
+      temp <- paste(temp, collapse = "")
+      seq[j, 1] <- temp
+      temp <- vector()
+  }
+  seq <- as.vector(seq$V1)
+  seq <- paste(seq, collapse = "")
+  if (dir[1, 1] == "-"){
+  seq <- as.character(reverseComplement(DNAString(seq)))
+  }
+  sequence <- data.frame(gene = single_gene_inc$GeneID, event = single_gene_inc$EVENT, sequence = seq)
+  ir_cdna_seq <- rbind(ir_cdna_seq, sequence)
+}
+filter(ir_cdna_seq, gene == "AT1G49740")
+```
+
+
 get all introns from Mao et al (2014). They're alt/cons designations are based on TAIR10, but we can combine all just to get all intron lengths
 ```{r}
 all_introns <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Mao_introns.tsv", delim = "\t", col_names = F) 
@@ -621,7 +713,7 @@ ir_length <- inc %>% filter(grepl("AthINT", EVENT)) %>%
 
 nrow(filter(ir_length, length > 1000))/nrow(ir_length) #<3% introns removed by filtering for plot
 
-t.test(ir_length$length, all_introns$length)
+t.test(ir_length$length, all_introns$length) #p < 2.2e-16, mean alt = 285.6, mean cons = 157.97
 
 
 lengths <- rbind(all_introns, ir_length)
@@ -629,7 +721,7 @@ lengths <- rbind(all_introns, ir_length)
 
 plot intron length
 ```{r}
-png("test.png", units="in", width=8, height=3, res=300)
+png("test.png", units="in", width=5.5, height=3, res=300)
 filter(lengths, length <= 1000) %>% 
 ggplot(., aes(x = length, y = fct_rev(group), fill = group, colour = group)) + 
   labs(x = "Intron length")+
@@ -648,6 +740,8 @@ get intron GC contents
 start with the alt introns (smaller dataset), then repeat for all introns
 ```{r}
 alt_GC_content <- data.frame()
+athal_gdna <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Athaliana_167_TAIR10.fa.gz")
+athal_gdna$seq.name <- str_sub(athal_gdna$seq.name, 1, 4)
 athal_gdna$seq.name <- tolower(athal_gdna$seq.name)
 
 for (i in 1:nrow(ir_length)){
@@ -665,6 +759,8 @@ for (i in 1:nrow(ir_length)){
 alt_GC_content$group <- c("Alternative introns")
 
 #gDNA fasta needs capital letters in seq.name, so go back up and read it back in
+athal_gdna <- read.fasta("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/Athaliana_167_TAIR10.fa.gz")
+athal_gdna$seq.name <- str_sub(athal_gdna$seq.name, 1, 4)
 all_GC_content <- data.frame()
 
 for (i in 1:nrow(all_introns)){
@@ -686,10 +782,11 @@ GC_content <- rbind(alt_GC_content, all_GC_content)
 
 ```
 
+plot GC content
 ```{r}
-png("test.png", units="in", width=8, height=3, res=300)
+png("test.png", units="in", width=5.5, height=3, res=300)
 ggplot(GC_content, aes(x = GC_content, y = fct_rev(group), fill = group, colour = group)) + 
-  labs(x = "Intron length")+
+  labs(x = "Intron GC content")+
   theme_minimal()+
   geom_density_ridges(scale = 0.95, alpha = 0.6)+
   scale_fill_manual(values = c("orchid", "limegreen"))+

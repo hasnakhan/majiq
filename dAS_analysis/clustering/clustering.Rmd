@@ -19,6 +19,7 @@ library(patchwork)
 library(RColorBrewer)
 library(palettetown)
 library(tidyverse)
+library(UpSetR)
 ```
 
 vast-tools:
@@ -634,5 +635,61 @@ inc_dist <- dist(inc_dist, method = "euclidean")
 as_inc_dist <- hclust(inc_dist, method = "ward.D" ) 
 plot(as_inc_dist, cex = 0.6, hang = -1)
 rect.hclust(as_inc_dist, 3)
+```
+```{r}
+db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
+colnames(db) <- c("EVENT", "GeneID")
+
+vm_data <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/clustering/vm_all_dAS_genes.tsv") %>% mutate(type = case_when(
+  grepl("AthEX.*", EVENT.x) ~ "Exon skipping",
+  grepl("AthALTA.*", EVENT.x) ~ "Alternative 3' SS",
+  grepl("AthALTD", EVENT.x) ~ "Alternative 5' SS",
+  grepl("AthINT", EVENT.x) ~ "Intron retention"
+))
+ES <- vm_data %>% filter(type == "Exon skipping") %>% 
+  select(EVENT.x)
+colnames(ES) <- "EVENT"
+ALTA <- vm_data %>% filter(type == "Alternative 3' SS") %>% 
+  select(EVENT.x)
+colnames(ALTA) <- "EVENT"
+ALTD <- vm_data %>% filter(type == "Alternative 5' SS") %>% 
+  select(EVENT.x)
+colnames(ALTD) <- "EVENT"
+IR <- vm_data %>% filter(type == "Intron retention") %>% 
+  select(EVENT.x)
+colnames(IR) <- "EVENT"
+ES <- merge(ES, db, by = "EVENT", all.x = T)
+ES_genes <- unique(ES$GeneID)
+ALTA <- merge(ALTA, db, by = "EVENT", all.x = T)
+ALTA_genes <- unique(ALTA$GeneID)
+ALTD <- merge(ALTD, db, by = "EVENT", all.x = T)
+ALTD_genes <- unique(ALTD$GeneID)
+IR <- merge(IR, db, by = "EVENT", all.x = T)
+IR_genes <- unique(IR$GeneID)
+
+to_plot <- list(ES_genes, IR_genes, ALTA_genes, ALTD_genes)
+names(to_plot) <- c("Exon skipping", "Intron retention", "Alternative 3' SS", "Alternative 5' SS")
+```
+
+```{r}
+png("test.png", units="in", width=20, height=15, res=300)
+ggVennDiagram(to_plot,
+              label_color = "grey20",
+              label_alpha = 0,
+              category.names = c(paste("Exon", "\n","skipping", sep = ""), "Intron retention", "Alternative 3' SS", paste("Alternative", "\n", "5' SS", sep = "")),
+              label_size = 10,
+              set_size = 10,
+              edge_size = 2)+
+  scale_fill_gradient(high = "skyblue", low = "grey80")+
+  theme(legend.key.size = unit(2, "cm"),
+        legend.text = element_text(size = 15),
+        legend.title = element_text(size = 25))+
+  labs(fill = "Number of genes")
+dev.off()
+```
+```{r}
+png("test.png", units="in", width=8, height=4, res=300)
+upset(fromList(to_plot), order.by = "freq", sets.x.label = "Number of genes", main.bar.color = "slateblue4", shade.color = "slategray", matrix.color = "midnightblue", sets.bar.color = "midnightblue", text.scale = 1.6)
+dev.off()
 ```
 

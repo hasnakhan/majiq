@@ -8,4 +8,4 @@ do
 	trimmed=$(echo "$name" | cut -f 1 -d '.')
 	seqtk seq -r $sequence > $sequence"_rev.fa"
 	done
-done
+done 
