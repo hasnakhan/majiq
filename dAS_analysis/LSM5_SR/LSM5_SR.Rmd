@@ -6,8 +6,10 @@ output: html_document
 here we're looking into the effects of 1. LSM5 dAS and 2. SR protein DE on global splicing patterns. LSM5 dPSIs are from my vast data (as with all the vast-majiq genes), and the SR RPKMs are from ePlant (Anna's data). The code begins as usual, reading in the vast and majiq events, finding the intersection, and setting up the appropriate groups. To start off with, we're only really interested in the drought-induced comps, but we may add in dev comps later (if so, we can add a couple more SR proteins that are DE between K and L watered samples)
 
 ```{r}
+library(palettetown)
 library(tidyverse)
 library(readxl)
+library(ggsignif)
 ```
 
 vast-tools:
@@ -413,6 +415,120 @@ ggplot(final_lsm5, aes(x = fct_inorder(comp), y = dPSI))+
   theme(axis.title.x = element_blank())+
   geom_hline(yintercept = 0)
 
+dev.off()
+```
+
+make a nice line graph of all the SR proteins (this runs independently of all code above)
+this should not be run, since it tries to calculate FC from raw counts, which shouldn't be done manually. Instead, just read in the results frm edgeR.
+```{r}
+source("sr_protein_exp.R")
+#this is only gonna work for the drought comps, where two condition names make up a comp
+#will need a new plan (and a new viz) for the dev comps
+#in theory the dev comps should be easier since the fn won't need a loop...
+srp30 <- sr_exp("At1g09140", c("K20dK20w", "K40dK40w", "K60dK60w"))
+srp34b <- sr_exp("At4g02430", c("K20dK20w", "K40dK40w", "K60dK60w"))
+rszp22a <- sr_exp("At2g24590", c("L20dL20w", "L40dL40w", "L60dL60w"))
+rsz33 <- sr_exp("At2g37340", c("L20dL20w", "L40dL40w", "L60dL60w"))
+scl30a <- sr_exp("At3g13570", c("L20dL20w", "L40dL40w", "L60dL60w"))
+
+stress_sr <- rbind(srp30, srp34b, rszp22a, rsz33, scl30a)
+ivy <- pokepal("Ivysaur", spread = 5)
+```
+
+```{r}
+stress_sr <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "edgeR_drought")
+
+watered_sr <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "edgeR_KwLw")
+```
+
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(stress_sr, aes(x = timepoint, y = fc, colour = agi, linetype = celltype))+
+  geom_hline(yintercept = 0, linetype = 3, colour = "grey30")+
+  geom_point()+
+  geom_line()+
+  theme_minimal()+
+  labs(x = "Timepoint (SWC%)",
+       y = "Log2FC (drought / watered)",
+       colour = "Gene ID",
+       linetype = "Cell type")+
+  scale_x_reverse()+
+  geom_text(x = -20, y = .57, label = "**", colour = "#209058", size = 6)+
+  geom_text(x = -20, y = -.93, label = "***", colour = "#885838", size = 6)+
+  geom_text(x = -20, y = -.75, label = "***", colour = "#105020", size = 6)+
+  geom_text(x = -20, y = -.52, label = "***", colour = "#F87878", size = 6)+
+  geom_text(x = -20, y = .43, label = "***", colour = "#68B020", size = 6)+
+  scale_colour_poke(pokemon = "Ivysaur", spread = 8, labels = c("AT1G09140 (SRp30)", "AT2G24590 (RSZp22a)", "AT2G37340 (RSZ33)", "AT3G13570 (SCL30a)", "AT4G02430 (SRp34b)"))+
+  scale_linetype_discrete(labels = c("GC", "Whole leaf"))
+  
+dev.off()
+```
+
+```{r}
+sr_watered <- function(gene){
+  data <- data <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = gene) %>% 
+    mutate(cond_type = case_when(
+      condition == "K20d" | condition == "K40d"| condition == "K60d" | condition == "L20d" | condition == "L40d" | condition == "L60d" ~ "droughted",
+      condition == "K20w" | condition == "K40w"| condition == "K60w" | condition == "L20w" | condition == "L40w" | condition == "L60w" ~ "watered")) %>% 
+    filter(cond_type == "watered") %>% 
+    mutate(celltype = case_when(
+      condition == "K20w"| condition == "K40w" | condition == "K60w" ~ "GC",
+      condition == "L20w"| condition == "L40w" | condition == "L60w" ~ "Whole leaf"
+  )) %>% 
+    group_by(celltype) %>% 
+    summarize(mean = mean(RPKM), sd = sd(RPKM), count = n()) %>% 
+    mutate(se = sd/sqrt(count))
+  l2fc = log2(data[1, 2] / data[2, 2])
+  fcse <- l2fc*(data[1, 5]/data[1, 2] + data[2, 5]/data[2, 2])
+  out <- data.frame(l2fc = l2fc, se = fcse, gene = gene)
+  return(out)
+}
+srp34a_w <- sr_watered("At3g49430")
+rszp22a_w <- sr_watered("At2g24590")
+rsz32_w <- sr_watered("At3g53500")
+rsz33_w <- sr_watered("At2g37340")
+scl28_w <- sr_watered("At5g18810")
+
+data <- data <- read_excel("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/LSM5_SR/SRproteins.xlsx", sheet = "At5g18810") %>% 
+    mutate(cond_type = case_when(
+      condition == "K20d" | condition == "K40d"| condition == "K60d" | condition == "L20d" | condition == "L40d" | condition == "L60d" ~ "droughted",
+      condition == "K20w" | condition == "K40w"| condition == "K60w" | condition == "L20w" | condition == "L40w" | condition == "L60w" ~ "watered")) %>% 
+    filter(cond_type == "watered") %>% 
+    mutate(celltype = case_when(
+      condition == "K20w"| condition == "K40w" | condition == "K60w" ~ "GC",
+      condition == "L20w"| condition == "L40w" | condition == "L60w" ~ "Whole leaf"
+  )) %>% 
+    group_by(celltype) %>% 
+    summarize(mean = mean(RPKM), sd = sd(RPKM), count = n()) 
+%>% 
+    mutate(se = sd/sqrt(count))
+  l2fc = log2(data[1, 2] / data[2, 2])
+  fcse <- l2fc*(data[1, 5]/data[1, 2] + data[2, 5]/data[2, 2])
+  out <- data.frame(l2fc = l2fc, se = fcse, gene = gene)
+
+watered_sr <- rbind(srp34a_w, rszp22a_w, rsz32_w, rsz33_w, scl28_w)
+ivy8 <- pokepal("Ivysaur", spread = 8)
+pokedex("Ivysaur", spread = 8)
+```
+
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(watered_sr, aes(x = agi, y = fc, fill = agi))+
+  geom_bar(stat = "identity")+
+  #geom_errorbar(aes(ymin = mean - mean.1, ymax = mean + mean.1), width = 0.3)+
+  theme_minimal()+
+   labs(x = "",
+       y = "Log2FC (GC / Whole leaf)")+
+  scale_fill_manual(values = c("#885838", "#105020", "#D04058", "#488820", "#80E8C0"))+
+  theme(legend.position = "none")+
+  scale_x_discrete(labels = c("AT2G24590\n(RSZp22a)", "AT2G37340\n(RSZ33)", "AT3G49430\n(SRp34a)", "AT3G53500\n(RSZ32)", "AT5G18810\n(SCL28)"))+
+  geom_text(x = 1, y = -1.07, label = "***", size = 6)+
+  geom_text(x = 2, y = -.74, label = "***", size = 6)+
+  geom_text(x = 3, y = -.7, label = "***", size = 6)+
+  geom_text(x = 4, y = -.58, label = "*", size = 6)+
+  geom_text(x = 5, y = -.71, label = "*", size = 6)
+#colours here feel excessive to me...? it's nice that they're the same as in the dw one, but it seems a little busy?
 dev.off()
 ```
 
