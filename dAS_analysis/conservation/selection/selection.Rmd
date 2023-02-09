@@ -680,12 +680,16 @@ tukey$reg
 
 #what's the upper filter people use for TPM?
 #ggsignif is running t-test to figure out how many stars to put, but we know they're correct from our analysis above
+```
+
+```{r}
+png("test.png", units="in", width=5, height=3.5, res=300)
 tpm_final %>% filter(med < 500) %>% 
   mutate(reg = factor(reg, levels = c("DE", "dAS", "all"))) %>% 
 ggplot(., aes(x = med, y = reg, fill = reg, colour= reg))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
-  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
-  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_fill_manual(values = c("turquoise", "limegreen", "darkblue"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "darkblue"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+

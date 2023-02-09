@@ -168,10 +168,11 @@ ggplot(all_taus, aes(x = group, y = exp_profile, fill = group))+
 
 try a ridgeline plot for clarity?
 ```{r}
+png("test.png", height = 3.5, width = 5, res = 300, units = "in")
 ggplot(all_taus, aes(x = exp_profile, y = group, fill = group, colour= group))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
-  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
-  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_fill_manual(values = c("turquoise", "limegreen", "darkblue"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "darkblue"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+
@@ -179,6 +180,7 @@ ggplot(all_taus, aes(x = exp_profile, y = group, fill = group, colour= group))+
        y = "")+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 6380", "dAS" ="dAS genes\nn = 244", "unreg" = "Unregulated genes\nn = 11 921"))+
 geom_signif(y_position = c(1.1, 1.15, 1.2), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("***", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = .5)
+dev.off()
 ```
 
 so those differences are highly significant, but is there a confounding effect of TPM?
@@ -358,10 +360,11 @@ p.adjust(c(ks_bp_das_deg$p.value, ks_bp_das_unreg$p.value, ks_bp_de_unreg$p.valu
 
 
 ```{r}
+png("test.png", units="in", width=5, height=3.5, res=300)
 ggplot(bp, aes(x = (num_terms), y = group, fill = group, colour= group))+
   geom_density_ridges(scale = .95, alpha = 0.6)+
-  scale_fill_manual(values = c("turquoise", "limegreen", "orchid"))+
-  scale_colour_manual(values = c("turquoise", "limegreen", "orchid"))+
+  scale_fill_manual(values = c("turquoise", "limegreen", "darkblue"))+
+  scale_colour_manual(values = c("turquoise", "limegreen", "darkblue"))+
   theme_minimal()+
   theme(legend.position = "none",
         axis.title.x = element_text(colour = "grey10"))+
@@ -370,6 +373,7 @@ ggplot(bp, aes(x = (num_terms), y = group, fill = group, colour= group))+
   scale_y_discrete(labels = c("DE" = "DE genes\nn = 8989", "dAS" ="dAS genes\nn = 406", "unreg" = "Unregulated genes\nn = 18 247"))+
   scale_x_continuous(trans = "log10")+
 geom_signif(y_position = c(2.02, 2.2, 2.4), xmin = c(0.9, 1.9, 0.9), xmax = c(2.8, 3.8, 3.8), annotations = c("*", "***", "***"), colour = "grey10", tip_length = 0.01, vjust = 0)
+dev.off()
 ```
 
 bp boxplot

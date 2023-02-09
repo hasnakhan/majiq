@@ -890,6 +890,21 @@ wilcox.test(upexon_scores_test$cons_mean, upexon_scores_test$alt_mean, paired = 
 ```
 
 
+```{r}
+png("test.png", units="in", width=6, height=4, res=300)
+ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
+  geom_line(size = 2)+
+  #lims(y = c(0.0185, 0.0225))+
+  labs(title = "Eudicot species",
+       subtitle = "Upstream exon",
+       y = "Mean phyloP score (3nt rolling average)",
+       x = "Position relative to 5' SS")+
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        text = element_text(size = 14))+
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("limegreen", "darkblue"))
+dev.off()
+```
 
 
 downstream exons
@@ -916,7 +931,7 @@ downexon_scores_plot <-  downexon_scores_plot %>% pivot_longer(c(alt_med, cons_m
 ```
 
 ```{r}
-#png("test.png", units="in", width=6, height=4, res=300)
+png("test.png", units="in", width=6, height=4, res=300)
 ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   geom_line(size = 2)+
   labs(title = "",
@@ -927,7 +942,7 @@ ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   theme(legend.title = element_blank(),
         text = element_text(size = 14))+
   scale_y_continuous(position = "right")+
-  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("limegreen", "darkblue"))
 dev.off()
 ```
 
@@ -1170,6 +1185,7 @@ for (gene in cons_genes){
 
 upstream exons
 ```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/")
 alt_genes_ara <- alt_genes[! alt_genes %in% c("AT1G24147", "AT1G53840")]
 cons_genes_ara <- cons_genes_struct[! cons_genes_struct %in% "AT5G15960"]
 upexon_scores = list.files(path = "phastCons/Arabidopsis/alternative/upstream_exon/", pattern = "_phylop.wig", full.names = T)
@@ -1211,6 +1227,7 @@ ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
 
 downstream exons
 ```{r}
+setwd("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/")
 downexon_scores = list.files(path = "phastCons/Arabidopsis/alternative/downstream_exon/", pattern = "_phylop.wig", full.names = T)
 downexon_scores <- do.call(cbind, lapply(downexon_scores, read_delim, delim = "\n"))
 colnames(downexon_scores) <- alt_genes_ara
@@ -1453,7 +1470,7 @@ ggplot(upexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   theme_minimal()+
   theme(legend.title = element_blank(),
         text = element_text(size = 14))+
-  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("limegreen", "darkblue"))
 dev.off()
 ```
 
@@ -1514,7 +1531,7 @@ ggplot(downexon_scores_plot, aes(x = position, y = mean, colour = Type_mean))+
   theme(legend.title = element_blank(),
         text = element_text(size = 14))+
   scale_y_continuous(position = "right", limits = c(0.0175, 0.0235))+
-  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("#F8766D", "#00BFC4"))
+  scale_colour_manual(labels = c("Alternative", "Constitutive"), values = c("limegreen", "darkblue"))
 dev.off()
 ```
 
