@@ -53,15 +53,9 @@ gene_exp$padj <- p.adjust(gene_exp$ans, "fdr")
 #filter out genes with padj > 0.005 (extra-strignent cutoff imposed by Li et al due to very large sample size and lots of tissue types)
 
 gene_exp$lepto <- ifelse(gene_exp$padj <= 0.005, "yes", "no")
+```
 
-ggplot(gene_exp, aes(x = kurt, fill = lepto))+
-  geom_histogram(binwidth = 9)+
-  labs(y = "Number of genes",
-       x = "Gene expression kurtosis in Klepikova atlas",
-       fill = "")+
-  geom_vline(xintercept = 4.5)+
-  scale_fill_manual(values = c("grey", "seagreen1"), labels = c("Housekeeping", "Leptokurtic"))
-
+```{r}
 lepto <- filter(gene_exp, padj <= 0.005)
 
 nrow(lepto) / nrow(gene_exp)
@@ -73,6 +67,21 @@ nrow(slightly_lepto) / nrow(gene_exp)
 #if we use a standard 0.05 cutoff, we keep 80% of genes, so we aren't losing too many more with the strict cutoff
 
 #write.table(lepto, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/conservation/pleiotropy/leptokurtic_genes_Klepikova_only.tsv", col.names = T, row.names=F, quote = F, sep = "\t")
+```
+
+
+```{r}
+png("test.png", height = 4, width =6, units = "in", res = 300)
+ggplot(gene_exp, aes(x = kurt, fill = lepto))+
+  geom_histogram(binwidth = 9)+
+  labs(y = "Number of genes",
+       x = "Gene expression kurtosis in Klepikova atlas",
+       fill = "")+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  geom_vline(xintercept = 4.5)+
+  scale_fill_manual(values = c("grey", "seagreen1"), labels = c("Housekeeping", "Leptokurtic"))
+dev.off()
 ```
 
 ```{r}

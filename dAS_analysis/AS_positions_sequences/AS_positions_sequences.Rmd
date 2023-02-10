@@ -146,6 +146,10 @@ for (i in 1:nrow(SJ)){
 
 junction_density <- density(SJ_pos_list$strand, adjust = 0.5, from = 0, to = 1)
 junction_density <- data.frame(x = junction_density$x, y = junction_density$y)
+
+#is this significantly different from AS location?
+t.test(pos_list$strand, SJ_pos_list$strand, alternative = "less") #p = 0.048
+ks.test(pos_list$strand, SJ_pos_list$strand, alternative = "less") #p = 0.0005
 ```
 
 ```{r}
