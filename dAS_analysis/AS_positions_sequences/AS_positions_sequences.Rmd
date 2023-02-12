@@ -10,6 +10,8 @@ library(Biostrings)
 library(tidyverse)
 library(ggsignif)
 library(ggridges)
+library(ggradar)
+library(scales)
 library(ggVennDiagram)
 library(VennDiagram)
 ```
@@ -29,6 +31,7 @@ colnames(events) <- c("event", "comp", "comp_type")
 vastDB
 ```{r}
 inc <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/all_data/complete_inclusion_table.tab", delim = "\t") 
+colnames(inc)
 db <- read_delim("C:/Users/hasna/Documents/MSc_project/vasttools/vast-tools/Ath/FILES/Ath.Event-Gene.IDs.txt", delim = "\t")
 colnames(db) <- c("EVENT", "GeneID") #gotta get the colnames to match across DFs
 inc <- merge(inc, db, by = "EVENT", all.x = T)
@@ -73,6 +76,13 @@ gene_data <- rbind(ID, parent)
 gene_data <- select(gene_data, X1, X3, X4, X5, X7, model) %>% 
   filter(model %in% rep_mods$mod)
 colnames(gene_data) <- c("chr", "feat", "start", "end", "strand", "model")
+
+#get strand info added to inc as well
+gene_strand <- filter(gff, X3 == "gene") %>% 
+  mutate(gene = str_sub(X9, 4, 12)) %>% 
+  select(gene, X7)
+colnames(gene_strand) <- c("GeneID", "strand")
+inc <- left_join(inc, gene_strand)
 ```
 
 ```{r}
@@ -704,15 +714,15 @@ all_introns <- read_delim("C:/Users/hasna/Documents/MSc_project/majiq/dAS_analys
 colnames(all_introns) <- c("chr", "start", "end", "strand", "mod")
 all_introns$length <- abs(all_introns$start - all_introns$end)
   
-all_introns <- all_introns %>% select(chr, start, end, length) %>% 
-  mutate(group = "All introns")
+all_introns <- all_introns %>% select(chr, start, end, strand, length) %>% 
+ mutate(group = "All introns")
 nrow(filter(all_introns, length > 1000))/nrow(all_introns) #<1% introns removed in filtering for graph
 ```
 
 ```{r}
 ir_length <- inc %>% filter(grepl("AthINT", EVENT)) %>% 
   mutate(length = abs(as.numeric(start) - as.numeric(end)) + 1) %>% 
-  select(chr, start, end, length) %>% 
+  select(chr, start, end, strand, length) %>% 
   mutate(group = "Alternative introns")
 
 nrow(filter(ir_length, length > 1000))/nrow(ir_length) #<3% introns removed by filtering for plot
@@ -757,7 +767,9 @@ for (i in 1:nrow(ir_length)){
   G <- as.numeric(str_count(seq, "G"))
   C <- as.numeric(str_count(seq, "C"))
   GC <- (G+C)/length
-  GC_content <- data.frame(GC_content = GC)
+  start <- str_sub(seq, 1, 2)
+  end <- str_sub(seq, -2, -1)
+  GC_content <- data.frame(GC_content = GC, start = start, end = end, strand = intron[1, 4])
   alt_GC_content <- rbind(alt_GC_content, GC_content)
 }
 alt_GC_content$group <- c("Alternative introns")
@@ -776,14 +788,15 @@ for (i in 1:nrow(all_introns)){
   G <- as.numeric(str_count(seq, "G"))
   C <- as.numeric(str_count(seq, "C"))
   GC <- (G+C)/length
-  GC_content <- data.frame(GC_content = GC)
+  start <- str_sub(seq, 1, 2)
+  end <- str_sub(seq, -2, -1)
+  GC_content <- data.frame(GC_content = GC, start = start, end = end, strand = intron[1, 4])
   all_GC_content <- rbind(all_GC_content, GC_content)
 }
 all_GC_content$group <- c("All introns")
 t.test(alt_GC_content$GC_content, all_GC_content$GC_content) #not significantly different
 ks.test(alt_GC_content$GC_content, all_GC_content$GC_content) #p = 0.005
 GC_content <- rbind(alt_GC_content, all_GC_content)
-
 ```
 
 plot GC content
@@ -800,5 +813,26 @@ ggplot(GC_content, aes(x = GC_content, y = fct_rev(group), fill = group, colour 
   geom_signif(y_position = c(0.9), xmin = 0.9, xmax = 2.8, annotations = "NS", colour = "grey10", tip_length = 0.01, vjust = 0)+
   scale_y_discrete(labels = c("Alternative introns\nn = 598", "All introns\nn = 112 774"))
 dev.off()
+```
+plot GT-AG frequencies
+```{r}
+GC_content$ss <- paste(GC_content$start, GC_content$end, sep = "-")
+ss_types <- GC_content %>% mutate(ss_type = case_when(
+    ss == "GT-AG" & strand == "+" | ss == "CT-AC" & strand == "-" ~ "canonical (GT-AG)",
+    ss == "GC-AG" & strand == "+" | ss == "CT-GC" & strand == "-" ~ "major non-canonical (GC-AG)",
+    ss == "AT-AC" & strand == "+" | ss == "GT-AT" & strand == "_" ~ "major non-canonical (AT-AC)",
+    TRUE ~ "minor non-canonical"
+  )
+) %>% 
+  group_by(group, ss_type) %>% 
+  summarise(count = n()) %>% 
+  mutate(freq = case_when(
+    group == "All introns" ~ count/112774,
+    group == "Alternative introns" ~ count/598
+  ))
+write.table(ss_types, "C:/Users/hasna/Documents/MSc_project/majiq/dAS_analysis/AS_positions_sequences/ss_types.tsv", sep = "\t", quote = F, row.names = F)
+
+ggplot(ss_types, aes(x = group, y = freq, fill = ss_type))+
+  geom_bar(stat = "identity", position = position_dodge())
 ```
 
