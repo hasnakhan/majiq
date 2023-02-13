@@ -460,7 +460,8 @@ ggplot(stress_sr, aes(x = timepoint, y = fc, colour = agi, linetype = celltype))
   geom_text(x = -20, y = -.52, label = "***", colour = "#F87878", size = 6)+
   geom_text(x = -20, y = .43, label = "***", colour = "#68B020", size = 6)+
   scale_colour_poke(pokemon = "Ivysaur", spread = 8, labels = c("AT1G09140 (SRp30)", "AT2G24590 (RSZp22a)", "AT2G37340 (RSZ33)", "AT3G13570 (SCL30a)", "AT4G02430 (SRp34b)"))+
-  scale_linetype_discrete(labels = c("GC", "Whole leaf"))
+  scale_linetype_discrete(labels = c("GC", "Whole leaf"))+
+  lims(y = c(-1, 1))
   
 dev.off()
 ```
